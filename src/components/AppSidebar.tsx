@@ -5,6 +5,7 @@ import {
   Users,
   Link2,
   Calendar,
+  UserPlus,
   LogOut,
   Moon,
   Sun,
@@ -33,6 +34,7 @@ const menuItems = [
   { title: "Grupos", url: "/groups", icon: Users },
   { title: "Link de Redirecionamento", url: "/redirect", icon: Link2 },
   { title: "Agendamentos", url: "/jobs", icon: Calendar },
+  { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
 ];
 
 export function AppSidebar() {

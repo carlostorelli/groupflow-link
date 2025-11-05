@@ -14,6 +14,7 @@ import WhatsApp from "./pages/WhatsApp";
 import Groups from "./pages/Groups";
 import RedirectLink from "./pages/RedirectLink";
 import Jobs from "./pages/Jobs";
+import ContactExtractor from "./pages/ContactExtractor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -91,6 +92,17 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Jobs />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/contacts"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ContactExtractor />
                   </AppLayout>
                 </ProtectedRoute>
               }
