@@ -6,11 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Settings, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { Copy, ExternalLink, Settings } from "lucide-react";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -23,6 +22,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableGroupRow } from "@/components/SortableGroupRow";
 
 const mockGroupsForRedirect = [
   { id: "1", name: "Grupo 1", priority: 1, members: 245, limit: 500 },
@@ -45,6 +60,38 @@ export default function RedirectLink() {
   const [groupPriorities, setGroupPriorities] = useState(mockGroupsForRedirect);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(["1", "2", "3", "4"]);
   const { toast } = useToast();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setGroupPriorities((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        // Update priorities
+        const updatedItems = newItems.map((item, index) => ({
+          ...item,
+          priority: index + 1,
+        }));
+
+        toast({
+          title: "Ordem atualizada",
+          description: "A prioridade dos grupos foi alterada",
+        });
+
+        return updatedItems;
+      });
+    }
+  };
 
   const toggleGroupSelection = (groupId: string) => {
     setSelectedGroupIds(prev => {
@@ -272,52 +319,39 @@ export default function RedirectLink() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[80px]">Ordem</TableHead>
-                <TableHead>Grupo</TableHead>
-                <TableHead>Membros</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groupPriorities.map((group, index) => (
-                <TableRow key={group.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      {group.priority}
-                    </div>
-                  </TableCell>
-                  <TableCell>{group.name}</TableCell>
-                  <TableCell>
-                    {group.members}/{group.limit}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveUp(index)}
-                        disabled={index === 0}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveDown(index)}
-                        disabled={index === groupPriorities.length - 1}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Ordem</TableHead>
+                  <TableHead>Grupo</TableHead>
+                  <TableHead>Membros</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                <SortableContext
+                  items={groupPriorities.map(g => g.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {groupPriorities.map((group, index) => (
+                    <SortableGroupRow
+                      key={group.id}
+                      group={group}
+                      index={index}
+                      totalGroups={groupPriorities.length}
+                      onMoveUp={moveUp}
+                      onMoveDown={moveDown}
+                    />
+                  ))}
+                </SortableContext>
+              </TableBody>
+            </Table>
+          </DndContext>
         </CardContent>
       </Card>
 
