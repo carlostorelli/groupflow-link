@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -28,9 +29,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2 } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 const mockJobs = [
   {
@@ -53,6 +67,13 @@ const mockJobs = [
   },
 ];
 
+const mockGroups = [
+  { id: "1", name: "Grupo 1" },
+  { id: "2", name: "Grupo 2" },
+  { id: "3", name: "Grupo 3" },
+  { id: "4", name: "Grupo VIP" },
+];
+
 export default function Jobs() {
   const [jobs] = useState(mockJobs);
   const [actionType, setActionType] = useState("");
@@ -61,7 +82,22 @@ export default function Jobs() {
   const [payload, setPayload] = useState("");
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const { toast } = useToast();
+
+  const toggleGroup = (groupId: string) => {
+    setSelectedGroups(prev =>
+      prev.includes(groupId)
+        ? prev.filter(id => id !== groupId)
+        : [...prev, groupId]
+    );
+  };
+
+  const insertMention = (mention: string) => {
+    setPayload(prev => prev + mention);
+    setMentionOpen(false);
+  };
 
   const handleScheduleJob = () => {
     if (!actionType || !scheduledDate || !scheduledTime) {
@@ -182,6 +218,30 @@ export default function Jobs() {
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label>Selecionar Grupos</Label>
+                <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+                  {mockGroups.map((group) => (
+                    <div key={group.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`group-${group.id}`}
+                        checked={selectedGroups.includes(group.id)}
+                        onCheckedChange={() => toggleGroup(group.id)}
+                      />
+                      <Label
+                        htmlFor={`group-${group.id}`}
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        {group.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedGroups.length} grupo(s) selecionado(s)
+                </p>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="date">Data</Label>
@@ -206,10 +266,36 @@ export default function Jobs() {
               {actionType === "send_message" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="payload">Mensagem</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="payload">Mensagem</Label>
+                      <Popover open={mentionOpen} onOpenChange={setMentionOpen}>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="outline" size="sm">
+                            <AtSign className="mr-2 h-4 w-4" />
+                            Mencionar
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[200px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Buscar..." />
+                            <CommandEmpty>Nenhuma opção encontrada.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem onSelect={() => insertMention("@todos ")}>
+                                <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
+                                @todos
+                              </CommandItem>
+                              <CommandItem onSelect={() => insertMention("@pessoa ")}>
+                                <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
+                                @pessoa
+                              </CommandItem>
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <Textarea
                       id="payload"
-                      placeholder="Digite sua mensagem..."
+                      placeholder="Digite sua mensagem... Use @todos para mencionar todos ou @pessoa para mencionar alguém específico"
                       value={payload}
                       onChange={(e) => setPayload(e.target.value)}
                       rows={4}

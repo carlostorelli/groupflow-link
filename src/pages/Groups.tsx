@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AtSign, Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,11 +21,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock, Unlock, MessageSquare, FileEdit, Type, Image as ImageIcon, Sparkles, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CreateMultipleGroups } from "@/components/CreateMultipleGroups";
 
 const mockGroups = [
   { id: "1", name: "Grupo VIP 1", members: 245, limit: 500, status: "open" },
@@ -42,7 +57,13 @@ export default function Groups() {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const { toast } = useToast();
+
+  const insertMention = (mention: string) => {
+    setMessage(prev => prev + mention);
+    setMentionOpen(false);
+  };
 
   const toggleGroup = (id: string) => {
     setSelectedGroups((prev) =>
@@ -167,11 +188,14 @@ export default function Groups() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold">Gestão de Grupos</h1>
-        <p className="text-muted-foreground mt-2">
-          Gerencie todos os seus grupos do WhatsApp em um só lugar
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold">Gestão de Grupos</h1>
+          <p className="text-muted-foreground mt-2">
+            Gerencie todos os seus grupos do WhatsApp em um só lugar
+          </p>
+        </div>
+        <CreateMultipleGroups />
       </div>
 
       <Card className="shadow-card">
@@ -290,10 +314,36 @@ export default function Groups() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="message">Mensagem</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="message">Mensagem</Label>
+                    <Popover open={mentionOpen} onOpenChange={setMentionOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm">
+                          <AtSign className="mr-2 h-4 w-4" />
+                          Mencionar
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar..." />
+                          <CommandEmpty>Nenhuma opção encontrada.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem onSelect={() => insertMention("@todos ")}>
+                              <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
+                              @todos
+                            </CommandItem>
+                            <CommandItem onSelect={() => insertMention("@pessoa ")}>
+                              <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
+                              @pessoa
+                            </CommandItem>
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <Textarea
                     id="message"
-                    placeholder="Digite sua mensagem..."
+                    placeholder="Digite sua mensagem... Use @todos para mencionar todos ou @pessoa para mencionar alguém específico"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}

@@ -5,12 +5,56 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Settings } from "lucide-react";
+import { Copy, ExternalLink, Settings, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+const mockGroupsForRedirect = [
+  { id: "1", name: "Grupo 1", priority: 1, members: 245, limit: 500 },
+  { id: "2", name: "Grupo 2", priority: 2, members: 180, limit: 500 },
+  { id: "3", name: "Grupo 3", priority: 3, members: 320, limit: 500 },
+  { id: "4", name: "Grupo VIP", priority: 4, members: 89, limit: 500 },
+];
 
 export default function RedirectLink() {
   const [slug, setSlug] = useState("meu-grupo");
   const [hasLink, setHasLink] = useState(false);
+  const [groupPriorities, setGroupPriorities] = useState(mockGroupsForRedirect);
   const { toast } = useToast();
+
+  const moveUp = (index: number) => {
+    if (index === 0) return;
+    const newPriorities = [...groupPriorities];
+    [newPriorities[index - 1], newPriorities[index]] = [newPriorities[index], newPriorities[index - 1]];
+    newPriorities.forEach((group, idx) => {
+      group.priority = idx + 1;
+    });
+    setGroupPriorities(newPriorities);
+    toast({
+      title: "Prioridade atualizada",
+      description: "A ordem dos grupos foi alterada",
+    });
+  };
+
+  const moveDown = (index: number) => {
+    if (index === groupPriorities.length - 1) return;
+    const newPriorities = [...groupPriorities];
+    [newPriorities[index + 1], newPriorities[index]] = [newPriorities[index], newPriorities[index + 1]];
+    newPriorities.forEach((group, idx) => {
+      group.priority = idx + 1;
+    });
+    setGroupPriorities(newPriorities);
+    toast({
+      title: "Prioridade atualizada",
+      description: "A ordem dos grupos foi alterada",
+    });
+  };
 
   const handleCreateLink = () => {
     if (!slug.trim()) {
@@ -133,24 +177,81 @@ export default function RedirectLink() {
 
       <Card className="shadow-card">
         <CardHeader>
+          <CardTitle>Prioridade de Inserção dos Grupos</CardTitle>
+          <CardDescription>
+            Arraste ou use as setas para definir a ordem de preenchimento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">Ordem</TableHead>
+                <TableHead>Grupo</TableHead>
+                <TableHead>Membros</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupPriorities.map((group, index) => (
+                <TableRow key={group.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      {group.priority}
+                    </div>
+                  </TableCell>
+                  <TableCell>{group.name}</TableCell>
+                  <TableCell>
+                    {group.members}/{group.limit}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveUp(index)}
+                        disabled={index === 0}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveDown(index)}
+                        disabled={index === groupPriorities.length - 1}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card">
+        <CardHeader>
           <CardTitle>Como funciona?</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <p className="text-muted-foreground">
               O sistema de redirecionamento inteligente distribui automaticamente novos membros
-              para grupos que ainda têm vagas disponíveis:
+              para grupos que ainda têm vagas disponíveis seguindo a ordem de prioridade:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
               <li>Uma pessoa acessa seu link personalizado</li>
-              <li>O sistema verifica qual grupo ainda tem vagas</li>
+              <li>O sistema verifica qual grupo tem maior prioridade e ainda tem vagas</li>
               <li>A pessoa é redirecionada automaticamente para o WhatsApp do grupo</li>
-              <li>Quando um grupo atinge o limite, o próximo grupo com vagas é usado</li>
+              <li>Quando um grupo atinge o limite, o próximo na ordem de prioridade é usado</li>
             </ol>
             <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
               <p className="text-sm">
-                <strong>Dica:</strong> Configure o limite de membros na página de Grupos para
-                controlar quando um grupo deve ser considerado "cheio"
+                <strong>Dica:</strong> Organize a ordem acima para controlar qual grupo deve ser
+                preenchido primeiro. Os grupos no topo da lista têm prioridade maior.
               </p>
             </div>
           </div>
