@@ -29,7 +29,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const mockJobs = [
   {
@@ -58,6 +59,8 @@ export default function Jobs() {
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [payload, setPayload] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const { toast } = useToast();
 
   const handleScheduleJob = () => {
@@ -94,8 +97,47 @@ export default function Jobs() {
       update_description: "Alterar Descrição",
       close_groups: "Fechar Grupos",
       open_groups: "Abrir Grupos",
+      change_group_name: "Alterar Nome do Grupo",
+      change_group_photo: "Alterar Foto do Grupo",
     };
     return labels[action] || action;
+  };
+
+  const handleEnhanceMessage = async () => {
+    if (!payload.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Digite uma mensagem primeiro",
+      });
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("enhance-message", {
+        body: { message: payload },
+      });
+
+      if (error) throw error;
+
+      if (data?.enhancedMessage) {
+        setPayload(data.enhancedMessage);
+        toast({
+          title: "Mensagem melhorada!",
+          description: "A IA aprimorou sua mensagem",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao melhorar mensagem:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível melhorar a mensagem",
+      });
+    } finally {
+      setIsEnhancing(false);
+    }
   };
 
   return (
@@ -134,6 +176,8 @@ export default function Jobs() {
                     <SelectItem value="update_description">Alterar Descrição</SelectItem>
                     <SelectItem value="close_groups">Fechar Grupos</SelectItem>
                     <SelectItem value="open_groups">Abrir Grupos</SelectItem>
+                    <SelectItem value="change_group_name">Alterar Nome do Grupo</SelectItem>
+                    <SelectItem value="change_group_photo">Alterar Foto do Grupo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -159,22 +203,95 @@ export default function Jobs() {
                 </div>
               </div>
 
-              {(actionType === "send_message" || actionType === "update_description") && (
+              {actionType === "send_message" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="payload">Mensagem</Label>
+                    <Textarea
+                      id="payload"
+                      placeholder="Digite sua mensagem..."
+                      value={payload}
+                      onChange={(e) => setPayload(e.target.value)}
+                      rows={4}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEnhanceMessage}
+                      disabled={isEnhancing || !payload.trim()}
+                      className="w-full"
+                    >
+                      {isEnhancing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Melhorando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Melhorar com IA
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="media">Anexar Imagem/Vídeo (opcional)</Label>
+                    <Input
+                      id="media"
+                      type="file"
+                      accept="image/*,video/*"
+                      onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                    />
+                    {mediaFile && (
+                      <p className="text-sm text-muted-foreground">
+                        Arquivo selecionado: {mediaFile.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {actionType === "update_description" && (
                 <div className="space-y-2">
-                  <Label htmlFor="payload">
-                    {actionType === "send_message" ? "Mensagem" : "Nova Descrição"}
-                  </Label>
+                  <Label htmlFor="payload">Nova Descrição</Label>
                   <Textarea
                     id="payload"
-                    placeholder={
-                      actionType === "send_message"
-                        ? "Digite sua mensagem..."
-                        : "Digite a nova descrição..."
-                    }
+                    placeholder="Digite a nova descrição..."
                     value={payload}
                     onChange={(e) => setPayload(e.target.value)}
                     rows={4}
                   />
+                </div>
+              )}
+
+              {actionType === "change_group_name" && (
+                <div className="space-y-2">
+                  <Label htmlFor="payload">Novo Nome do Grupo</Label>
+                  <Input
+                    id="payload"
+                    placeholder="Digite o novo nome..."
+                    value={payload}
+                    onChange={(e) => setPayload(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {actionType === "change_group_photo" && (
+                <div className="space-y-2">
+                  <Label htmlFor="group-photo">Nova Foto do Grupo</Label>
+                  <Input
+                    id="group-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                  />
+                  {mediaFile && (
+                    <p className="text-sm text-muted-foreground">
+                      Arquivo selecionado: {mediaFile.name}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -249,6 +366,12 @@ export default function Jobs() {
               </li>
               <li>
                 <strong>Fechar/Abrir Grupos:</strong> Altera as configurações de privacidade
+              </li>
+              <li>
+                <strong>Alterar Nome do Grupo:</strong> Atualiza o nome de grupos específicos
+              </li>
+              <li>
+                <strong>Alterar Foto do Grupo:</strong> Atualiza a foto de grupos específicos
               </li>
             </ul>
             <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
