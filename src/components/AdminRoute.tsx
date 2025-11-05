@@ -16,7 +16,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
         .select('role')
         .eq('user_id', user.id)
         .eq('role', 'admin')
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking admin role:', error);

@@ -61,10 +61,10 @@ export function AppSidebar() {
         .select('role')
         .eq('user_id', user.id)
         .eq('role', 'admin')
-        .single();
+        .maybeSingle();
 
-      if (error) return false;
-      return !!data;
+      if (error || !data) return false;
+      return true;
     },
     enabled: !!user,
   });
