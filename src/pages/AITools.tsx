@@ -316,6 +316,7 @@ export default function AITools() {
                   <SelectItem value="shopee">🛍️ Shopee</SelectItem>
                   <SelectItem value="shein">👗 Shein</SelectItem>
                   <SelectItem value="mercadolivre">📦 Mercado Livre</SelectItem>
+                  <SelectItem value="aliexpress">🌐 AliExpress</SelectItem>
                 </SelectContent>
               </Select>
 

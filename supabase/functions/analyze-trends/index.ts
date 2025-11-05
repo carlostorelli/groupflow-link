@@ -24,7 +24,8 @@ serve(async (req) => {
     const platformNames: Record<string, string> = {
       shopee: 'Shopee',
       shein: 'Shein',
-      mercadolivre: 'Mercado Livre'
+      mercadolivre: 'Mercado Livre',
+      aliexpress: 'AliExpress'
     };
     
     const platformName = platformNames[platform] || 'Shopee';
@@ -70,7 +71,12 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`
     }
 
     const data = await response.json();
-    const result = JSON.parse(data.choices[0].message.content);
+    let content = data.choices[0].message.content;
+    
+    // Remove markdown code blocks if present
+    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    const result = JSON.parse(content);
 
     console.log('Análise de tendências concluída');
 

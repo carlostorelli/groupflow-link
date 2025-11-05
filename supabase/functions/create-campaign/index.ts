@@ -61,7 +61,12 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`
     }
 
     const strategyData = await strategyResponse.json();
-    const campaignData = JSON.parse(strategyData.choices[0].message.content);
+    let strategyContent = strategyData.choices[0].message.content;
+    
+    // Remove markdown code blocks if present
+    strategyContent = strategyContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    const campaignData = JSON.parse(strategyContent);
 
     // Generate group image
     const imagePrompt = `Create a vibrant and professional WhatsApp group cover image for: ${prompt}. Include relevant icons, emojis, and promotional elements. Make it eye-catching and suitable for a sales/discount group. Ultra high resolution.`;
