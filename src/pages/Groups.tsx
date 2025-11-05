@@ -23,9 +23,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, Unlock, MessageSquare, FileEdit } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Lock, Unlock, MessageSquare, FileEdit, Type, Image as ImageIcon, Sparkles, Upload } from "lucide-react";
 
-// Dados de exemplo
 const mockGroups = [
   { id: "1", name: "Grupo VIP 1", members: 245, limit: 500, status: "open" },
   { id: "2", name: "Grupo VIP 2", members: 487, limit: 500, status: "open" },
@@ -38,6 +38,10 @@ export default function Groups() {
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [description, setDescription] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const { toast } = useToast();
 
   const toggleGroup = (id: string) => {
@@ -68,6 +72,86 @@ export default function Groups() {
       title: "Ação executada",
       description: `${action} aplicado em ${selectedGroups.length} grupo(s)`,
     });
+  };
+
+  const handleEnhanceMessage = async () => {
+    if (!message.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Mensagem vazia",
+        description: "Digite uma mensagem para melhorar",
+      });
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enhance-message', {
+        body: { message }
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        toast({
+          variant: "destructive",
+          title: "Erro",
+          description: data.error,
+        });
+        return;
+      }
+
+      setMessage(data.enhancedMessage);
+      toast({
+        title: "Mensagem melhorada!",
+        description: "A IA personalizou sua mensagem com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao melhorar mensagem:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao melhorar mensagem",
+        description: "Tente novamente em instantes",
+      });
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      return isImage || isVideo;
+    });
+
+    if (validFiles.length !== files.length) {
+      toast({
+        variant: "destructive",
+        title: "Arquivos inválidos",
+        description: "Apenas imagens e vídeos são permitidos",
+      });
+    }
+
+    setMediaFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setGroupPhoto(file);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Arquivo inválido",
+        description: "Apenas imagens são permitidas",
+      });
+    }
+  };
+
+  const removeMediaFile = (index: number) => {
+    setMediaFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const getStatusBadge = (status: string) => {
@@ -116,11 +200,88 @@ export default function Groups() {
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="outline">
+                <Type className="mr-2 h-4 w-4" />
+                Alterar Nome
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Alterar Nome dos Grupos</DialogTitle>
+                <DialogDescription>
+                  Defina um novo nome para os grupos selecionados
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="groupName">Novo Nome</Label>
+                  <Input
+                    id="groupName"
+                    placeholder="Digite o novo nome..."
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => handleBulkAction("Alterar nome")}
+                >
+                  Atualizar Nome
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Alterar Foto
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Alterar Foto dos Grupos</DialogTitle>
+                <DialogDescription>
+                  Envie uma nova foto para os grupos selecionados
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="groupPhoto">Foto do Grupo</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="groupPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="flex-1"
+                    />
+                  </div>
+                  {groupPhoto && (
+                    <p className="text-sm text-muted-foreground">
+                      Arquivo selecionado: {groupPhoto.name}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => handleBulkAction("Alterar foto")}
+                  disabled={!groupPhoto}
+                >
+                  Atualizar Foto
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Enviar Mensagem
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Enviar Mensagem</DialogTitle>
                 <DialogDescription>
@@ -137,7 +298,57 @@ export default function Groups() {
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}
                   />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEnhanceMessage}
+                    disabled={isEnhancing || !message.trim()}
+                    className="w-full"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {isEnhancing ? "Melhorando..." : "Melhorar com IA"}
+                  </Button>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="media">Anexar Mídia (Imagens/Vídeos)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="media"
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleMediaUpload}
+                      className="flex-1"
+                    />
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  {mediaFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        {mediaFiles.length} arquivo(s) selecionado(s):
+                      </p>
+                      <div className="space-y-1">
+                        {mediaFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between text-sm bg-muted p-2 rounded"
+                          >
+                            <span className="truncate flex-1">{file.name}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMediaFile(index)}
+                            >
+                              Remover
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <Button
                   className="w-full"
                   onClick={() => handleBulkAction("Enviar mensagem")}
