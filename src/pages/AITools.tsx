@@ -414,7 +414,7 @@ export default function AITools() {
                               onClick={() => window.open(product.url, '_blank')}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Ver Produto
+                              Buscar Produto
                             </Button>
                           )}
                         </div>

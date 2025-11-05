@@ -30,14 +30,14 @@ serve(async (req) => {
     
     const platformName = platformNames[platform] || 'Shopee';
 
-    const platformUrls: Record<string, string> = {
-      shopee: 'https://shopee.com.br',
-      shein: 'https://br.shein.com',
-      mercadolivre: 'https://mercadolivre.com.br',
-      aliexpress: 'https://pt.aliexpress.com'
+    const searchUrls: Record<string, string> = {
+      shopee: 'https://shopee.com.br/search?keyword=',
+      shein: 'https://br.shein.com/search/',
+      mercadolivre: 'https://lista.mercadolivre.com.br/',
+      aliexpress: 'https://pt.aliexpress.com/wholesale?SearchText='
     };
 
-    const baseUrl = platformUrls[platform] || platformUrls.shopee;
+    const searchBaseUrl = searchUrls[platform] || searchUrls.shopee;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -58,12 +58,12 @@ serve(async (req) => {
 
 Gere uma análise completa em formato JSON com:
 1. products: Array com 10 produtos em alta, cada um contendo:
-   - name: Nome do produto
+   - name: Nome do produto (será usado para criar link de busca)
    - description: Breve descrição (1 linha)
    - price: Faixa de preço estimada (ex: "R$ 50 - R$ 80")
    - sales: Número estimado de vendas recentes (ex: "2.5k")
    - rating: Avaliação (ex: "4.8")
-   - url: URL completa e realista do produto usando ${baseUrl} como base (crie URLs que pareçam reais com slugs apropriados)
+   - searchTerm: Termo de busca otimizado para encontrar o produto (sem acentos, palavras-chave principais)
 2. marketAnalysis: Análise detalhada do mercado para essa categoria (3-4 parágrafos)
 3. recommendations: Recomendações estratégicas para sellers (3-4 parágrafos)
 
@@ -87,6 +87,14 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     
     const result = JSON.parse(content);
+
+    // Add search URLs to products
+    if (result.products && Array.isArray(result.products)) {
+      result.products = result.products.map((product: any) => ({
+        ...product,
+        url: `${searchBaseUrl}${encodeURIComponent(product.searchTerm || product.name)}`
+      }));
+    }
 
     console.log('Análise de tendências concluída');
 
