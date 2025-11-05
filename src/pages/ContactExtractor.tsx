@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,29 +172,79 @@ export default function ContactExtractor() {
     });
   };
 
-  const exportContacts = () => {
+  const exportContacts = async () => {
     const selectedContactsData = contacts.filter(c => 
       selectedContacts.includes(c.id)
     );
     
-    const csv = [
-      "Nome,Telefone,Admin",
-      ...selectedContactsData.map(c => 
-        `${c.name},${c.phone},${c.isAdmin ? "Sim" : "Não"}`
-      )
-    ].join("\n");
-    
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "contatos.csv";
-    a.click();
-    
-    toast({
-      title: "Contatos exportados!",
-      description: "Arquivo CSV baixado com sucesso",
-    });
+    try {
+      // Carregar o template
+      const response = await fetch("/templates/contacts-template.xlsx");
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      
+      // Assumindo que a primeira planilha é onde vamos adicionar os dados
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Converter planilha para JSON para facilitar manipulação
+      const existingData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      
+      // Pegar o cabeçalho (primeira linha)
+      const headers = existingData[0] || [];
+      
+      // Mapear os contatos para o formato da planilha
+      // Tentando detectar as colunas mais comuns
+      const contactRows = selectedContactsData.map(contact => {
+        const row: any = {};
+        
+        // Tentar preencher baseado em nomes comuns de colunas
+        headers.forEach((header: string) => {
+          const headerLower = header?.toLowerCase() || "";
+          
+          if (headerLower.includes("nome") || headerLower.includes("name")) {
+            row[header] = contact.name;
+          } else if (headerLower.includes("telefone") || headerLower.includes("phone") || headerLower.includes("número")) {
+            row[header] = contact.phone;
+          } else if (headerLower.includes("admin") || headerLower.includes("administrador")) {
+            row[header] = contact.isAdmin ? "Sim" : "Não";
+          } else {
+            row[header] = ""; // Preencher outras colunas com vazio
+          }
+        });
+        
+        return row;
+      });
+      
+      // Criar nova planilha com os dados
+      const newData = [headers, ...contactRows.map(row => headers.map((h: string) => row[h] || ""))];
+      const newWorksheet = XLSX.utils.aoa_to_sheet(newData);
+      
+      // Substituir a planilha no workbook
+      workbook.Sheets[firstSheetName] = newWorksheet;
+      
+      // Gerar o arquivo
+      const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "contatos-extraidos.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Contatos exportados!",
+        description: "Planilha Excel baixada com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao exportar:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro na exportação",
+        description: "Não foi possível exportar a planilha",
+      });
+    }
   };
 
   const filteredContacts = filterAdminsOnly 
