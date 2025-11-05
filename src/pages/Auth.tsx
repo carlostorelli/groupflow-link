@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
+import logoDark from "@/assets/logo-dark.png";
+import logoLight from "@/assets/logo-light.png";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -15,6 +18,7 @@ export default function Auth() {
   const { signUp, signIn, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (user) {
@@ -65,8 +69,12 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
       <Card className="w-full max-w-md border-border/50 shadow-xl">
         <CardHeader className="space-y-1 text-center pb-8">
-          <div className="mb-2">
-            <h1 className="text-3xl font-bold tracking-tight">WhatsApp Manager</h1>
+          <div className="mb-4 flex justify-center">
+            <img 
+              src={theme === "dark" ? logoLight : logoDark} 
+              alt="WhatsApp Manager" 
+              className="h-16 w-auto"
+            />
           </div>
           <CardTitle className="text-xl">Bem-vindo</CardTitle>
           <CardDescription>
