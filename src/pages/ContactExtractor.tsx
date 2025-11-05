@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,27 +70,51 @@ export default function ContactExtractor() {
 
     setIsExtracting(true);
     
-    // Simulação de extração
-    setTimeout(() => {
-      const mockContacts: Contact[] = [
-        { id: "1", name: "João Silva", phone: "+5511999999999", isAdmin: true },
-        { id: "2", name: "Maria Santos", phone: "+5511988888888", isAdmin: false },
-        { id: "3", name: "Pedro Costa", phone: "+5511977777777", isAdmin: false },
-        { id: "4", name: "Ana Oliveira", phone: "+5511966666666", isAdmin: true },
-        { id: "5", name: "Carlos Souza", phone: "+5511955555555", isAdmin: false },
-        { id: "6", name: "Julia Lima", phone: "+5511944444444", isAdmin: false },
-        { id: "7", name: "Roberto Alves", phone: "+5511933333333", isAdmin: false },
-        { id: "8", name: "Fernanda Rocha", phone: "+5511922222222", isAdmin: false },
-      ];
-      
-      setContacts(mockContacts);
-      setIsExtracting(false);
-      
-      toast({
-        title: "Contatos extraídos!",
-        description: `${mockContacts.length} contatos foram extraídos do grupo`,
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-contacts", {
+        body: { groupLink },
       });
-    }, 2000);
+
+      if (error) {
+        console.error("Error extracting contacts:", error);
+        throw error;
+      }
+
+      console.log("Extraction response:", data);
+
+      if (data && data.contacts && data.contacts.length > 0) {
+        // Convert API response to our Contact format
+        const extractedContacts: Contact[] = data.contacts.map((contact: any, index: number) => ({
+          id: contact.id || `contact-${index}`,
+          name: contact.name || contact.pushname || contact.phone,
+          phone: contact.phone || contact.id?.replace("@c.us", ""),
+          isAdmin: contact.isAdmin || false,
+        }));
+
+        setContacts(extractedContacts);
+        
+        toast({
+          title: "Contatos extraídos!",
+          description: `${extractedContacts.length} contato(s) extraído(s) do grupo`,
+        });
+      } else {
+        // Fallback to show the API is not fully configured
+        toast({
+          variant: "destructive",
+          title: "API não configurada",
+          description: data?.message || "Configure a integração com WhatsApp para extrair contatos reais",
+        });
+      }
+    } catch (error) {
+      console.error("Error in extraction:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro na extração",
+        description: "Não foi possível extrair os contatos. Verifique se sua instância WhatsApp está conectada.",
+      });
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const toggleContact = (contactId: string) => {
