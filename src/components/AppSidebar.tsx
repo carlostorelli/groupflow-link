@@ -9,6 +9,8 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
+import logoLight from "@/assets/logo-light.png";
+import logoDark from "@/assets/logo-dark.png";
 import {
   Sidebar,
   SidebarContent,
@@ -51,8 +53,14 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>
-            WhatsApp Manager
+          <SidebarGroupLabel className="flex items-center justify-center py-4">
+            {!collapsed && (
+              <img 
+                src={theme === "dark" ? logoLight : logoDark} 
+                alt="Zapp Grupos" 
+                className="h-12 w-auto"
+              />
+            )}
           </SidebarGroupLabel>
 
           <SidebarGroupContent>
