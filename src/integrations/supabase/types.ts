@@ -273,6 +273,38 @@ export type Database = {
         }
         Relationships: []
       }
+      redirect_link_clicks: {
+        Row: {
+          clicked_at: string
+          id: string
+          ip_address: string | null
+          link_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          clicked_at?: string
+          id?: string
+          ip_address?: string | null
+          link_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          clicked_at?: string
+          id?: string
+          ip_address?: string | null
+          link_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redirect_link_clicks_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "saved_redirect_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       redirect_links: {
         Row: {
           created_at: string
@@ -307,6 +339,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      saved_redirect_links: {
+        Row: {
+          created_at: string
+          group_priorities: Json
+          id: string
+          is_active: boolean
+          slug: string
+          total_clicks: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_priorities?: Json
+          id?: string
+          is_active?: boolean
+          slug: string
+          total_clicks?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_priorities?: Json
+          id?: string
+          is_active?: boolean
+          slug?: string
+          total_clicks?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       settings: {
         Row: {
