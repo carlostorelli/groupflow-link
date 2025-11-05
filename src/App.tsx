@@ -15,6 +15,7 @@ import Groups from "./pages/Groups";
 import RedirectLink from "./pages/RedirectLink";
 import Jobs from "./pages/Jobs";
 import ContactExtractor from "./pages/ContactExtractor";
+import AITools from "./pages/AITools";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -103,6 +104,17 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <ContactExtractor />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/ai-tools"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <AITools />
                   </AppLayout>
                 </ProtectedRoute>
               }

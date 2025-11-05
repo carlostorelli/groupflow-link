@@ -6,6 +6,7 @@ import {
   Link2,
   Calendar,
   UserPlus,
+  Sparkles,
   LogOut,
   Moon,
   Sun,
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Link de Redirecionamento", url: "/redirect", icon: Link2 },
   { title: "Agendamentos", url: "/jobs", icon: Calendar },
   { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
+  { title: "Ferramentas de IA", url: "/ai-tools", icon: Sparkles },
 ];
 
 export function AppSidebar() {
