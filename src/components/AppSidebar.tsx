@@ -52,17 +52,18 @@ export function AppSidebar() {
       <SidebarTrigger className="m-2 self-end" />
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center justify-center py-4">
-            {!collapsed && (
-              <img 
-                src={theme === "dark" ? logoLight : logoDark} 
-                alt="Zapp Grupos" 
-                className="h-12 w-auto"
-              />
-            )}
-          </SidebarGroupLabel>
+        {/* Logo section */}
+        <div className="px-4 py-6 mb-4">
+          {!collapsed && (
+            <img 
+              src={theme === "dark" ? logoLight : logoDark} 
+              alt="Zapp Grupos" 
+              className="h-10 w-auto"
+            />
+          )}
+        </div>
 
+        <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
