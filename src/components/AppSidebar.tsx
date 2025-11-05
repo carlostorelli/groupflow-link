@@ -125,6 +125,15 @@ export function AppSidebar() {
           <Button 
             variant="ghost" 
             className="w-full justify-start" 
+            onClick={() => window.open('https://wa.me/5511999999999', '_blank')}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {!collapsed && <span className="ml-2">Suporte</span>}
+          </Button>
+
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start" 
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             {theme === "dark" ? (
