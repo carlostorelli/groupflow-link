@@ -108,21 +108,21 @@ export default function Dashboard() {
               Comece conectando seu WhatsApp na aba "WhatsApp" para importar seus grupos.
             </p>
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="p-4 rounded-lg bg-secondary">
-                <h3 className="font-semibold mb-2">1. Conecte seu WhatsApp</h3>
-                <p className="text-sm text-muted-foreground">
+              <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+                <h3 className="font-semibold mb-2 text-primary">1. Conecte seu WhatsApp</h3>
+                <p className="text-sm text-foreground/70">
                   Use o QR Code para conectar sua conta
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-secondary">
-                <h3 className="font-semibold mb-2">2. Importe seus grupos</h3>
-                <p className="text-sm text-muted-foreground">
+              <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+                <h3 className="font-semibold mb-2 text-primary">2. Importe seus grupos</h3>
+                <p className="text-sm text-foreground/70">
                   Seus grupos serão listados automaticamente
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-secondary">
-                <h3 className="font-semibold mb-2">3. Configure redirecionamento</h3>
-                <p className="text-sm text-muted-foreground">
+              <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+                <h3 className="font-semibold mb-2 text-primary">3. Configure redirecionamento</h3>
+                <p className="text-sm text-foreground/70">
                   Crie links inteligentes para distribuir membros
                 </p>
               </div>
