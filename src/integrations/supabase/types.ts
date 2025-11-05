@@ -153,11 +153,69 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          features: Json | null
+          group_limit: number
+          id: string
+          is_active: boolean
+          kiwify_product_id_annual: string | null
+          kiwify_product_id_monthly: string | null
+          kiwify_product_id_semester: string | null
+          name: string
+          price_annual: number | null
+          price_monthly: number | null
+          price_semester: number | null
+          slug: string
+          storage_limit: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          group_limit?: number
+          id?: string
+          is_active?: boolean
+          kiwify_product_id_annual?: string | null
+          kiwify_product_id_monthly?: string | null
+          kiwify_product_id_semester?: string | null
+          name: string
+          price_annual?: number | null
+          price_monthly?: number | null
+          price_semester?: number | null
+          slug: string
+          storage_limit?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          group_limit?: number
+          id?: string
+          is_active?: boolean
+          kiwify_product_id_annual?: string | null
+          kiwify_product_id_monthly?: string | null
+          kiwify_product_id_semester?: string | null
+          name?: string
+          price_annual?: number | null
+          price_monthly?: number | null
+          price_semester?: number | null
+          slug?: string
+          storage_limit?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
           email: string
           id: string
+          phone_number: string | null
           plan: Database["public"]["Enums"]["user_plan"]
           storage_limit: number | null
           updated_at: string
@@ -166,6 +224,7 @@ export type Database = {
           created_at?: string
           email: string
           id: string
+          phone_number?: string | null
           plan?: Database["public"]["Enums"]["user_plan"]
           storage_limit?: number | null
           updated_at?: string
@@ -174,6 +233,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          phone_number?: string | null
           plan?: Database["public"]["Enums"]["user_plan"]
           storage_limit?: number | null
           updated_at?: string
@@ -215,6 +275,54 @@ export type Database = {
           },
         ]
       }
+      settings: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           email: string
@@ -244,9 +352,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "user"
       group_status: "open" | "closed" | "full"
       instance_status: "connected" | "disconnected" | "pending"
       job_action_type:
@@ -383,6 +498,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       group_status: ["open", "closed", "full"],
       instance_status: ["connected", "disconnected", "pending"],
       job_action_type: [
