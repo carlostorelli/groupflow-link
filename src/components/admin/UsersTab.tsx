@@ -200,6 +200,8 @@ export default function UsersTab() {
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];
         toast.error(firstError.message);
+      } else if (error.message?.includes("already registered") || error.message?.includes("User already registered")) {
+        toast.error("Este email já está cadastrado no sistema");
       } else {
         toast.error(error.message || "Erro ao criar usuário");
       }
