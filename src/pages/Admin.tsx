@@ -5,6 +5,7 @@ import UsersTab from "@/components/admin/UsersTab";
 import PlansTab from "@/components/admin/PlansTab";
 import TeamTab from "@/components/admin/TeamTab";
 import SettingsTab from "@/components/admin/SettingsTab";
+import EmailTemplatesTab from "@/components/admin/EmailTemplatesTab";
 
 export default function Admin() {
   const [stats, setStats] = useState({
@@ -28,6 +29,7 @@ export default function Admin() {
           <TabsTrigger value="users">Usuários</TabsTrigger>
           <TabsTrigger value="plans">Planos</TabsTrigger>
           <TabsTrigger value="team">Equipe</TabsTrigger>
+          <TabsTrigger value="emails">E-mails</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
         </TabsList>
 
@@ -45,6 +47,10 @@ export default function Admin() {
 
         <TabsContent value="team">
           <TeamTab />
+        </TabsContent>
+
+        <TabsContent value="emails">
+          <EmailTemplatesTab />
         </TabsContent>
 
         <TabsContent value="settings">
