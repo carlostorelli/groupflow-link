@@ -159,6 +159,7 @@ export type Database = {
           email: string
           id: string
           plan: Database["public"]["Enums"]["user_plan"]
+          storage_limit: number | null
           updated_at: string
         }
         Insert: {
@@ -166,6 +167,7 @@ export type Database = {
           email: string
           id: string
           plan?: Database["public"]["Enums"]["user_plan"]
+          storage_limit?: number | null
           updated_at?: string
         }
         Update: {
@@ -173,6 +175,7 @@ export type Database = {
           email?: string
           id?: string
           plan?: Database["public"]["Enums"]["user_plan"]
+          storage_limit?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -211,6 +214,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_logs: {
+        Row: {
+          email: string
+          event: string
+          id: string
+          processed_at: string | null
+          product: string | null
+        }
+        Insert: {
+          email: string
+          event: string
+          id?: string
+          processed_at?: string | null
+          product?: string | null
+        }
+        Update: {
+          email?: string
+          event?: string
+          id?: string
+          processed_at?: string | null
+          product?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

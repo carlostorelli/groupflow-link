@@ -16,6 +16,7 @@ import RedirectLink from "./pages/RedirectLink";
 import Jobs from "./pages/Jobs";
 import ContactExtractor from "./pages/ContactExtractor";
 import AITools from "./pages/AITools";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -115,6 +116,17 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <AITools />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Admin />
                   </AppLayout>
                 </ProtectedRoute>
               }

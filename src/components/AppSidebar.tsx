@@ -10,6 +10,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  Shield,
 } from "lucide-react";
 import logoLight from "@/assets/logo-light.png";
 import logoDark from "@/assets/logo-dark.png";
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Agendamentos", url: "/jobs", icon: Calendar },
   { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
   { title: "Ferramentas de IA", url: "/ai-tools", icon: Sparkles },
+  { title: "Admin", url: "/admin", icon: Shield },
 ];
 
 export function AppSidebar() {
