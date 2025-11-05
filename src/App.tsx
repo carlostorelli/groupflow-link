@@ -36,109 +36,109 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/auth" element={<Auth />} />
-            
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/whatsapp"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <WhatsApp />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/groups"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Groups />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/redirect"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <RedirectLink />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/jobs"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Jobs />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/contacts"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ContactExtractor />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/ai-tools"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <AITools />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth" element={<Auth />} />
+              
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Dashboard />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/whatsapp"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <WhatsApp />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/groups"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Groups />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/redirect"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <RedirectLink />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/jobs"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Jobs />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/contacts"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <ContactExtractor />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/ai-tools"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <AITools />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <AppLayout>
-                    <Admin />
-                  </AppLayout>
-                </AdminRoute>
-              }
-            />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AppLayout>
+                      <Admin />
+                    </AppLayout>
+                  </AdminRoute>
+                }
+              />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
         </AuthProvider>
       </BrowserRouter>
-    </TooltipProvider>
-  </ThemeProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
