@@ -97,7 +97,7 @@ export function AppSidebar() {
         <div className="px-4 py-6 mb-4">
           {!collapsed && (
             <img 
-              src={theme === "dark" ? logoLight : logoDark} 
+              src={theme === "dark" ? logoDark : logoLight} 
               alt="Zapp Grupos" 
               className="h-10 w-auto"
             />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Settings } from "lucide-react";
+import { Copy, ExternalLink, Settings, Trash2, Eye } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
   TableBody,
+  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -59,7 +62,10 @@ export default function RedirectLink() {
   const [hasLink, setHasLink] = useState(false);
   const [groupPriorities, setGroupPriorities] = useState(mockGroupsForRedirect);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(["1", "2", "3", "4"]);
+  const [savedLinks, setSavedLinks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -67,6 +73,27 @@ export default function RedirectLink() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  useEffect(() => {
+    if (user) {
+      loadSavedLinks();
+    }
+  }, [user]);
+
+  const loadSavedLinks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('saved_redirect_links')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedLinks(data || []);
+    } catch (error) {
+      console.error('Error loading saved links:', error);
+    }
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -77,7 +104,6 @@ export default function RedirectLink() {
         const newIndex = items.findIndex((item) => item.id === over.id);
 
         const newItems = arrayMove(items, oldIndex, newIndex);
-        // Update priorities
         const updatedItems = newItems.map((item, index) => ({
           ...item,
           priority: index + 1,
@@ -145,7 +171,7 @@ export default function RedirectLink() {
     });
   };
 
-  const handleCreateLink = () => {
+  const handleCreateLink = async () => {
     if (!slug.trim()) {
       toast({
         variant: "destructive",
@@ -155,15 +181,66 @@ export default function RedirectLink() {
       return;
     }
 
-    setHasLink(true);
-    toast({
-      title: "Link criado!",
-      description: "Seu link de redirecionamento foi criado com sucesso",
-    });
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('saved_redirect_links')
+        .insert({
+          user_id: user?.id,
+          slug: slug,
+          group_priorities: groupPriorities,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setHasLink(true);
+      await loadSavedLinks();
+      
+      toast({
+        title: "Link criado!",
+        description: "Seu link de redirecionamento foi salvo com sucesso",
+      });
+    } catch (error: any) {
+      console.error('Error creating link:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Não foi possível criar o link",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const copyToClipboard = () => {
-    const link = `${window.location.origin}/r/${slug}`;
+  const deleteLink = async (linkId: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_redirect_links')
+        .delete()
+        .eq('id', linkId);
+
+      if (error) throw error;
+
+      await loadSavedLinks();
+      toast({
+        title: "Link excluído",
+        description: "O link foi removido com sucesso",
+      });
+    } catch (error) {
+      console.error('Error deleting link:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível excluir o link",
+      });
+    }
+  };
+
+  const copyToClipboard = (linkSlug: string) => {
+    const link = `${window.location.origin}/r/${linkSlug}`;
     navigator.clipboard.writeText(link);
     toast({
       title: "Link copiado!",
@@ -255,56 +332,68 @@ export default function RedirectLink() {
               </p>
             </div>
 
-            {hasLink ? (
-              <div className="space-y-3">
-                <Badge className="bg-gradient-success">
-                  Link Ativo
-                </Badge>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setHasLink(false)}
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Editar Link
-                </Button>
-              </div>
-            ) : (
-              <Button onClick={handleCreateLink} className="w-full">
-                Criar Link
-              </Button>
-            )}
+            <Button onClick={handleCreateLink} disabled={loading} className="w-full">
+              {loading ? "Salvando..." : "Criar e Salvar Link"}
+            </Button>
           </CardContent>
         </Card>
 
         <Card className="shadow-card bg-gradient-to-br from-card to-secondary/20">
           <CardHeader>
-            <CardTitle>Seu Link</CardTitle>
+            <CardTitle>Links Salvos</CardTitle>
             <CardDescription>
-              Compartilhe este link para distribuir membros automaticamente
+              Seus links de redirecionamento criados
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {hasLink ? (
-              <>
-                <div className="p-4 bg-background rounded-lg border-2 border-primary/20">
-                  <code className="text-sm break-all">
-                    {window.location.origin}/r/{slug}
-                  </code>
+          <CardContent className="space-y-3">
+            {savedLinks.length > 0 ? (
+              savedLinks.map((link) => (
+                <div key={link.id} className="p-4 bg-background rounded-lg border">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <code className="text-sm font-medium">/r/{link.slug}</code>
+                        {link.is_active && (
+                          <Badge variant="outline" className="text-xs">Ativo</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {link.total_clicks} clique(s) • {new Date(link.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => copyToClipboard(link.slug)}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copiar
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => window.open(`/r/${link.slug}`, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => deleteLink(link.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={copyToClipboard} className="flex-1">
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copiar Link
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </div>
-              </>
+              ))
             ) : (
               <div className="text-center text-muted-foreground py-8">
-                <p>Configure o slug e crie seu link para visualizá-lo aqui</p>
+                <Eye className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                <p>Nenhum link salvo ainda</p>
+                <p className="text-xs mt-1">Crie seu primeiro link ao lado</p>
               </div>
             )}
           </CardContent>
@@ -370,6 +459,7 @@ export default function RedirectLink() {
               <li>O sistema verifica qual grupo tem maior prioridade e ainda tem vagas</li>
               <li>A pessoa é redirecionada automaticamente para o WhatsApp do grupo</li>
               <li>Quando um grupo atinge o limite, o próximo na ordem de prioridade é usado</li>
+              <li>Cada clique é contabilizado automaticamente</li>
             </ol>
             <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
               <p className="text-sm">

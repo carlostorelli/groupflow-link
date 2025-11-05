@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, TrendingUp, Users, MessageSquare, ExternalLink } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, Users, MessageSquare, ExternalLink, Plus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AITools() {
@@ -14,6 +16,7 @@ export default function AITools() {
 
   // Campaign Creator State
   const [campaignPrompt, setCampaignPrompt] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
   const [campaignResult, setCampaignResult] = useState<any>(null);
 
   // Engagement Analyzer State
@@ -27,6 +30,7 @@ export default function AITools() {
 
   // Message Enhancer State
   const [productLinks, setProductLinks] = useState("");
+  const [affiliateLink, setAffiliateLink] = useState("");
   const [copyStyle, setCopyStyle] = useState("aggressive");
   const [messageResult, setMessageResult] = useState<any>(null);
 
@@ -43,7 +47,10 @@ export default function AITools() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-campaign', {
-        body: { prompt: campaignPrompt }
+        body: { 
+          prompt: campaignPrompt,
+          imagePrompt: imagePrompt || campaignPrompt
+        }
       });
 
       if (error) throw error;
@@ -51,7 +58,7 @@ export default function AITools() {
       setCampaignResult(data);
       toast({
         title: "Campanha criada! 🎉",
-        description: "Sua campanha foi gerada com sucesso",
+        description: "Sua campanha foi gerada com sucesso e está salva",
       });
     } catch (error) {
       console.error('Error creating campaign:', error);
@@ -63,6 +70,16 @@ export default function AITools() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNewCampaign = () => {
+    setCampaignPrompt("");
+    setImagePrompt("");
+    setCampaignResult(null);
+    toast({
+      title: "Pronto!",
+      description: "Você pode criar uma nova campanha agora",
+    });
   };
 
   const handleAnalyzeEngagement = async () => {
@@ -148,7 +165,11 @@ export default function AITools() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('enhance-message', {
-        body: { productLinks, copyStyle }
+        body: { 
+          productLinks, 
+          copyStyle,
+          affiliateLink: affiliateLink || null
+        }
       });
 
       if (error) throw error;
@@ -209,66 +230,93 @@ export default function AITools() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                placeholder='Ex: "Quero fazer uma oferta de produtos da Shopee e captar gente interessada em descontos."'
-                value={campaignPrompt}
-                onChange={(e) => setCampaignPrompt(e.target.value)}
-                rows={4}
-              />
-              <Button onClick={handleCreateCampaign} disabled={loading} className="w-full">
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Gerando campanha...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Gerar Campanha Completa
-                  </>
-                )}
-              </Button>
-
-              {campaignResult && (
-                <div className="mt-6 space-y-4">
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h3 className="font-semibold mb-2">📝 Nomes dos Grupos</h3>
-                    <ul className="list-disc list-inside space-y-1">
-                      {campaignResult.groupNames?.map((name: string, i: number) => (
-                        <li key={i}>{name}</li>
-                      ))}
-                    </ul>
+              {!campaignResult ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="campaignPrompt">Descrição da Campanha</Label>
+                    <Textarea
+                      id="campaignPrompt"
+                      placeholder='Ex: "Quero fazer uma oferta de produtos da Shopee e captar gente interessada em descontos."'
+                      value={campaignPrompt}
+                      onChange={(e) => setCampaignPrompt(e.target.value)}
+                      rows={4}
+                    />
                   </div>
 
-                  {campaignResult.groupImage && (
+                  <div className="space-y-2">
+                    <Label htmlFor="imagePrompt">Texto para Imagem do Grupo (Opcional)</Label>
+                    <Input
+                      id="imagePrompt"
+                      placeholder='Ex: "Ofertas e descontos da Shopee" ou deixe vazio para usar a descrição da campanha'
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      A IA gerará uma imagem baseada neste texto. Se deixar vazio, usará a descrição da campanha.
+                    </p>
+                  </div>
+
+                  <Button onClick={handleCreateCampaign} disabled={loading} className="w-full">
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Gerando campanha...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Gerar Campanha Completa
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-4">
                     <div className="p-4 bg-muted rounded-lg">
-                      <h3 className="font-semibold mb-2">🎨 Foto do Grupo</h3>
-                      <img src={campaignResult.groupImage} alt="Group" className="w-full max-w-md rounded-lg" />
+                      <h3 className="font-semibold mb-2">📝 Nomes dos Grupos</h3>
+                      <ul className="list-disc list-inside space-y-1">
+                        {campaignResult.groupNames?.map((name: string, i: number) => (
+                          <li key={i}>{name}</li>
+                        ))}
+                      </ul>
                     </div>
-                  )}
 
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h3 className="font-semibold mb-2">📄 Descrição</h3>
-                    <p className="whitespace-pre-wrap">{campaignResult.description}</p>
-                  </div>
+                    {campaignResult.groupImage && (
+                      <div className="p-4 bg-muted rounded-lg">
+                        <h3 className="font-semibold mb-2">🎨 Foto do Grupo</h3>
+                        <img src={campaignResult.groupImage} alt="Group" className="w-full max-w-md rounded-lg" />
+                      </div>
+                    )}
 
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h3 className="font-semibold mb-2">💬 Mensagem de Boas-vindas</h3>
-                    <p className="whitespace-pre-wrap">{campaignResult.welcomeMessage}</p>
-                  </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <h3 className="font-semibold mb-2">📄 Descrição</h3>
+                      <p className="whitespace-pre-wrap">{campaignResult.description}</p>
+                    </div>
 
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h3 className="font-semibold mb-2">📅 Cronograma de 7 Dias</h3>
-                    <div className="space-y-2">
-                      {campaignResult.schedule?.map((day: any, i: number) => (
-                        <div key={i} className="border-l-2 border-primary pl-4">
-                          <p className="font-medium">Dia {day.day}: {day.title}</p>
-                          <p className="text-sm text-muted-foreground">{day.message}</p>
-                        </div>
-                      ))}
+                    <div className="p-4 bg-muted rounded-lg">
+                      <h3 className="font-semibold mb-2">💬 Mensagem de Boas-vindas</h3>
+                      <p className="whitespace-pre-wrap">{campaignResult.welcomeMessage}</p>
+                    </div>
+
+                    <div className="p-4 bg-muted rounded-lg">
+                      <h3 className="font-semibold mb-2">📅 Cronograma de 7 Dias</h3>
+                      <div className="space-y-2">
+                        {campaignResult.schedule?.map((day: any, i: number) => (
+                          <div key={i} className="border-l-2 border-primary pl-4">
+                            <p className="font-medium">Dia {day.day}: {day.title}</p>
+                            <p className="text-sm text-muted-foreground">{day.message}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  <Button onClick={handleNewCampaign} variant="outline" className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Gerar Nova Campanha
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>
@@ -447,12 +495,29 @@ export default function AITools() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                placeholder='Cole os links dos produtos aqui, um por linha&#10;Ex:&#10;https://shopee.com.br/produto1&#10;https://shopee.com.br/produto2'
-                value={productLinks}
-                onChange={(e) => setProductLinks(e.target.value)}
-                rows={5}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="productLinks">Links dos Produtos</Label>
+                <Textarea
+                  id="productLinks"
+                  placeholder='Cole os links dos produtos aqui, um por linha&#10;Ex:&#10;https://shopee.com.br/produto1&#10;https://shopee.com.br/produto2'
+                  value={productLinks}
+                  onChange={(e) => setProductLinks(e.target.value)}
+                  rows={5}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="affiliateLink">Link de Afiliado (Opcional)</Label>
+                <Input
+                  id="affiliateLink"
+                  placeholder="Ex: https://s.shopee.com.br/seu-link-afiliado"
+                  value={affiliateLink}
+                  onChange={(e) => setAffiliateLink(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se você tem um link de afiliado, cole aqui para ser incluído nas mensagens geradas
+                </p>
+              </div>
 
               <Select value={copyStyle} onValueChange={setCopyStyle}>
                 <SelectTrigger>
