@@ -11,6 +11,7 @@ import {
   Moon,
   Sun,
   Shield,
+  BookOpen,
 } from "lucide-react";
 import logoLight from "@/assets/logo-light.png";
 import logoDark from "@/assets/logo-dark.png";
@@ -77,6 +78,32 @@ export function AppSidebar() {
     staleTime: 0, // Always refetch
   });
 
+  const { data: appSettings } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .in('key', ['support_whatsapp', 'tutorial_link']);
+
+      if (error) {
+        console.error('Error fetching settings:', error);
+        return { support_whatsapp: '5511999999999', tutorial_link: '' };
+      }
+
+      const settingsMap = (data || []).reduce((acc: any, setting: any) => {
+        acc[setting.key] = setting.value || "";
+        return acc;
+      }, {});
+
+      return {
+        support_whatsapp: settingsMap.support_whatsapp || '5511999999999',
+        tutorial_link: settingsMap.tutorial_link || '',
+      };
+    },
+    initialData: { support_whatsapp: '5511999999999', tutorial_link: '' },
+  });
+
   const visibleMenuItems = menuItems.filter(item => {
     if (item.url === '/admin') {
       return isAdmin;
@@ -125,11 +152,22 @@ export function AppSidebar() {
           <Button 
             variant="ghost" 
             className="w-full justify-start" 
-            onClick={() => window.open('https://wa.me/5511999999999', '_blank')}
+            onClick={() => window.open(`https://wa.me/${appSettings?.support_whatsapp}`, '_blank')}
           >
             <MessageSquare className="h-4 w-4" />
             {!collapsed && <span className="ml-2">Suporte</span>}
           </Button>
+
+          {appSettings?.tutorial_link && (
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start" 
+              onClick={() => window.open(appSettings.tutorial_link, '_blank')}
+            >
+              <BookOpen className="h-4 w-4" />
+              {!collapsed && <span className="ml-2">Tutoriais</span>}
+            </Button>
+          )}
 
           <Button 
             variant="ghost" 

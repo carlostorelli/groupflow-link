@@ -100,7 +100,7 @@ export default function Dashboard() {
 
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Zapp Grupos</CardTitle>
+          <CardTitle>Bem-vindo ao Zapp Grupos</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

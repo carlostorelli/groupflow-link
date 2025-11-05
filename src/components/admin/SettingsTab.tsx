@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Save, Key, Webhook, MessageSquare } from "lucide-react";
+import { Save, Key, Webhook, MessageSquare, BookOpen } from "lucide-react";
 
 interface Setting {
   key: string;
@@ -19,6 +19,8 @@ export default function SettingsTab() {
     kiwify_webhook_token: "",
     evolution_api_key: "",
     evolution_api_url: "",
+    support_whatsapp: "",
+    tutorial_link: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,7 +34,7 @@ export default function SettingsTab() {
       const { data, error } = await supabase
         .from('settings')
         .select('*')
-        .in('key', ['resend_api_key', 'kiwify_webhook_token', 'evolution_api_key', 'evolution_api_url']);
+        .in('key', ['resend_api_key', 'kiwify_webhook_token', 'evolution_api_key', 'evolution_api_url', 'support_whatsapp', 'tutorial_link']);
 
       if (error) throw error;
 
@@ -46,6 +48,8 @@ export default function SettingsTab() {
         kiwify_webhook_token: settingsMap.kiwify_webhook_token || "",
         evolution_api_key: settingsMap.evolution_api_key || "",
         evolution_api_url: settingsMap.evolution_api_url || "",
+        support_whatsapp: settingsMap.support_whatsapp || "",
+        tutorial_link: settingsMap.tutorial_link || "",
       });
     } catch (error) {
       console.error('Erro ao buscar configurações:', error);
@@ -65,6 +69,8 @@ export default function SettingsTab() {
         { key: 'kiwify_webhook_token', value: settings.kiwify_webhook_token, description: 'Token de segurança para webhooks Kiwify' },
         { key: 'evolution_api_key', value: settings.evolution_api_key, description: 'Chave da API Evolution' },
         { key: 'evolution_api_url', value: settings.evolution_api_url, description: 'URL da API Evolution' },
+        { key: 'support_whatsapp', value: settings.support_whatsapp, description: 'Número do WhatsApp de suporte' },
+        { key: 'tutorial_link', value: settings.tutorial_link, description: 'Link para os tutoriais da ferramenta' },
       ];
 
       for (const setting of settingsToSave) {
@@ -186,6 +192,47 @@ export default function SettingsTab() {
               value={settings.evolution_api_key}
               onChange={(e) => setSettings({...settings, evolution_api_key: e.target.value})}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Configurações da Aplicação */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            <CardTitle>Configurações da Aplicação</CardTitle>
+          </div>
+          <CardDescription>
+            Configure números de suporte e links de tutoriais
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="support_whatsapp">WhatsApp de Suporte</Label>
+            <Input
+              id="support_whatsapp"
+              type="text"
+              placeholder="5511999999999"
+              value={settings.support_whatsapp}
+              onChange={(e) => setSettings({...settings, support_whatsapp: e.target.value})}
+            />
+            <p className="text-xs text-muted-foreground">
+              Digite o número com código do país sem espaços ou símbolos (ex: 5511999999999)
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="tutorial_link">Link dos Tutoriais</Label>
+            <Input
+              id="tutorial_link"
+              type="url"
+              placeholder="https://exemplo.com/tutoriais"
+              value={settings.tutorial_link}
+              onChange={(e) => setSettings({...settings, tutorial_link: e.target.value})}
+            />
+            <p className="text-xs text-muted-foreground">
+              Link para a página de tutoriais da ferramenta
+            </p>
           </div>
         </CardContent>
       </Card>
