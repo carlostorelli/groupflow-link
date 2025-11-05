@@ -51,7 +51,7 @@ export function AppSidebar() {
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
-  const { data: isAdmin } = useQuery({
+  const { data: isAdmin = false } = useQuery({
     queryKey: ['user-role', user?.id],
     queryFn: async () => {
       if (!user) return false;
@@ -63,10 +63,18 @@ export function AppSidebar() {
         .eq('role', 'admin')
         .maybeSingle();
 
-      if (error || !data) return false;
-      return true;
+      console.log('Admin check for user:', user.id, 'Result:', data);
+
+      if (error) {
+        console.error('Error checking admin:', error);
+        return false;
+      }
+
+      return !!data;
     },
     enabled: !!user,
+    initialData: false,
+    staleTime: 0, // Always refetch
   });
 
   const visibleMenuItems = menuItems.filter(item => {
