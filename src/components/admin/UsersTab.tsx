@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Search, Phone, Mail, Plus, Loader2 } from "lucide-react";
@@ -38,6 +39,8 @@ export default function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -45,23 +48,56 @@ export default function UsersTab() {
     plan: "free"
   });
 
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.ceil(totalUsers / ITEMS_PER_PAGE);
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [currentPage, statusFilter]);
 
   useEffect(() => {
-    filterUsers();
-  }, [searchTerm, statusFilter, users]);
+    if (searchTerm) {
+      filterUsers();
+    } else {
+      fetchUsers();
+    }
+  }, [searchTerm]);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Buscar contagem total
+      const { count, error: countError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      if (countError) throw countError;
+      setTotalUsers(count || 0);
+
+      // Aplicar filtro de status
+      let query = supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
+      if (statusFilter !== "all") {
+        const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+        if (statusFilter === "active") {
+          query = query.gt('updated_at', thirtyDaysAgo);
+        } else {
+          query = query.lte('updated_at', thirtyDaysAgo);
+        }
+      }
+
+      // Aplicar paginação
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      
+      const { data, error } = await query.range(from, to);
+
       if (error) throw error;
       setUsers(data || []);
+      setFilteredUsers(data || []);
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
       toast.error("Erro ao carregar usuários");
@@ -70,27 +106,34 @@ export default function UsersTab() {
     }
   };
 
-  const filterUsers = () => {
-    let filtered = users;
-
-    // Filtro por texto
-    if (searchTerm) {
-      filtered = filtered.filter(user =>
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.phone_number?.includes(searchTerm)
-      );
+  const filterUsers = async () => {
+    if (!searchTerm) {
+      fetchUsers();
+      return;
     }
 
-    // Filtro por status
-    if (statusFilter !== "all") {
-      const thirtyDaysAgo = subDays(new Date(), 30);
-      filtered = filtered.filter(user => {
-        const isActive = new Date(user.updated_at) > thirtyDaysAgo;
-        return statusFilter === "active" ? isActive : !isActive;
-      });
-    }
+    setLoading(true);
+    try {
+      // Buscar com filtro de texto (sem paginação para busca)
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    setFilteredUsers(filtered);
+      // Aplicar filtro de texto
+      query = query.or(`email.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      setFilteredUsers(data || []);
+      setTotalUsers(data?.length || 0);
+    } catch (error) {
+      console.error('Erro ao filtrar usuários:', error);
+      toast.error("Erro ao filtrar usuários");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isUserActive = (updatedAt: string) => {
@@ -281,19 +324,28 @@ export default function UsersTab() {
             <div className="flex gap-2">
               <Button
                 variant={statusFilter === "all" ? "default" : "outline"}
-                onClick={() => setStatusFilter("all")}
+                onClick={() => {
+                  setStatusFilter("all");
+                  setCurrentPage(1);
+                }}
               >
                 Todos
               </Button>
               <Button
                 variant={statusFilter === "active" ? "default" : "outline"}
-                onClick={() => setStatusFilter("active")}
+                onClick={() => {
+                  setStatusFilter("active");
+                  setCurrentPage(1);
+                }}
               >
                 Ativos
               </Button>
               <Button
                 variant={statusFilter === "inactive" ? "default" : "outline"}
-                onClick={() => setStatusFilter("inactive")}
+                onClick={() => {
+                  setStatusFilter("inactive");
+                  setCurrentPage(1);
+                }}
               >
                 Inativos
               </Button>
@@ -371,10 +423,61 @@ export default function UsersTab() {
                   ))
                 )}
               </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+              </Table>
+            </div>
+
+            {/* Paginação */}
+            {!searchTerm && totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, totalUsers)} de {totalUsers} usuários
+                </p>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(pageNum)}
+                            isActive={currentPage === pageNum}
+                            className="cursor-pointer"
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+                    
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
