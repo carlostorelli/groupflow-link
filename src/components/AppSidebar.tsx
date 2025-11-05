@@ -6,6 +6,8 @@ import {
   Link2,
   Calendar,
   LogOut,
+  Moon,
+  Sun,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,6 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -34,6 +37,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const { signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
@@ -67,7 +71,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <div className="mt-auto p-4">
+        <div className="mt-auto p-4 space-y-2">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start" 
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun className="h-4 w-4" />
+                {!collapsed && <span className="ml-2">Tema Claro</span>}
+              </>
+            ) : (
+              <>
+                <Moon className="h-4 w-4" />
+                {!collapsed && <span className="ml-2">Tema Escuro</span>}
+              </>
+            )}
+          </Button>
+          
           <Button 
             variant="ghost" 
             className="w-full justify-start" 
