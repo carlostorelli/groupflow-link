@@ -8,9 +8,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Copy, CheckCircle2 } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, Copy, CheckCircle2, Users, TrendingUp, Package } from "lucide-react";
+import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+
+interface DashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  planStats: { plan: string; count: number }[];
+  growthData: { date: string; users: number }[];
+}
 
 export default function Admin() {
   const [email, setEmail] = useState("");
@@ -19,12 +29,76 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    inactiveUsers: 0,
+    planStats: [],
+    growthData: []
+  });
 
   const webhookUrl = `${window.location.origin}/api/webhooks/kiwify`;
 
   useEffect(() => {
     fetchWebhookLogs();
+    fetchDashboardStats();
   }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      // Buscar todos os usuários
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('plan, created_at, updated_at');
+
+      if (profilesError) throw profilesError;
+
+      const now = new Date();
+      const thirtyDaysAgo = subDays(now, 30);
+
+      // Calcular estatísticas
+      const totalUsers = profiles?.length || 0;
+      const activeUsers = profiles?.filter(p => 
+        new Date(p.updated_at) > thirtyDaysAgo
+      ).length || 0;
+      const inactiveUsers = totalUsers - activeUsers;
+
+      // Estatísticas por plano
+      const planCounts = profiles?.reduce((acc: any, profile) => {
+        const plan = profile.plan || 'free';
+        acc[plan] = (acc[plan] || 0) + 1;
+        return acc;
+      }, {});
+
+      const planStats = Object.entries(planCounts || {}).map(([plan, count]) => ({
+        plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+        count: count as number
+      }));
+
+      // Dados de crescimento (últimos 7 dias)
+      const growthData = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = subDays(now, i);
+        const count = profiles?.filter(p => 
+          new Date(p.created_at) <= date
+        ).length || 0;
+        growthData.push({
+          date: format(date, 'dd/MM', { locale: ptBR }),
+          users: count
+        });
+      }
+
+      setStats({
+        totalUsers,
+        activeUsers,
+        inactiveUsers,
+        planStats,
+        growthData
+      });
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas:', error);
+    }
+  };
 
   const fetchWebhookLogs = async () => {
     const { data, error } = await supabase
@@ -68,8 +142,9 @@ export default function Admin() {
       setEvent("");
       setProduct("");
       
-      // Atualizar logs
+      // Atualizar logs e estatísticas
       await fetchWebhookLogs();
+      await fetchDashboardStats();
     } catch (error: any) {
       console.error('Erro ao simular webhook:', error);
       toast.error(error.message || "Erro ao simular webhook");
@@ -108,11 +183,136 @@ export default function Admin() {
     return product;
   };
 
+  const PLAN_COLORS = {
+    Free: "hsl(var(--chart-1))",
+    Starter: "hsl(var(--chart-2))",
+    Pro: "hsl(var(--chart-3))",
+    Master: "hsl(var(--chart-4))"
+  };
+
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold mb-2">Painel Administrativo</h1>
         <p className="text-muted-foreground">Gerencie webhooks e configurações do sistema</p>
+      </div>
+
+      {/* Dashboard de Estatísticas */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.activeUsers} ativos, {stats.inactiveUsers} inativos
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.activeUsers}</div>
+            <p className="text-xs text-muted-foreground">
+              Ativos nos últimos 30 dias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Planos Contratados</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.planStats.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Diferentes planos ativos
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Crescimento de Usuários</CardTitle>
+            <CardDescription>Últimos 7 dias</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                users: {
+                  label: "Usuários",
+                  color: "hsl(var(--chart-1))",
+                },
+              }}
+              className="h-[200px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={stats.growthData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="users" 
+                    stroke="hsl(var(--chart-1))" 
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribuição por Plano</CardTitle>
+            <CardDescription>Usuários por tipo de plano</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={Object.fromEntries(
+                stats.planStats.map(({ plan }) => [
+                  plan.toLowerCase(),
+                  { label: plan, color: PLAN_COLORS[plan as keyof typeof PLAN_COLORS] || "hsl(var(--chart-1))" }
+                ])
+              )}
+              className="h-[200px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Pie
+                    data={stats.planStats}
+                    dataKey="count"
+                    nameKey="plan"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    {stats.planStats.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={PLAN_COLORS[entry.plan as keyof typeof PLAN_COLORS] || "hsl(var(--chart-1))"} 
+                      />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* URL do Webhook */}
