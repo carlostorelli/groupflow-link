@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, TrendingUp, Users } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, Users, MessageSquare, ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AITools() {
@@ -24,6 +24,11 @@ export default function AITools() {
   const [selectedPlatform, setSelectedPlatform] = useState("shopee");
   const [trendCategory, setTrendCategory] = useState("");
   const [trendResult, setTrendResult] = useState<any>(null);
+
+  // Message Enhancer State
+  const [productLinks, setProductLinks] = useState("");
+  const [copyStyle, setCopyStyle] = useState("aggressive");
+  const [messageResult, setMessageResult] = useState<any>(null);
 
   const handleCreateCampaign = async () => {
     if (!campaignPrompt.trim()) {
@@ -130,6 +135,41 @@ export default function AITools() {
     }
   };
 
+  const handleEnhanceMessage = async () => {
+    if (!productLinks.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, cole os links dos produtos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enhance-message', {
+        body: { productLinks, copyStyle }
+      });
+
+      if (error) throw error;
+
+      setMessageResult(data);
+      toast({
+        title: "Mensagens criadas! ✨",
+        description: "Escolha a que mais combina com você",
+      });
+    } catch (error) {
+      console.error('Error enhancing message:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar as mensagens",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -140,7 +180,7 @@ export default function AITools() {
       </div>
 
       <Tabs defaultValue="campaign" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="campaign">
             <Sparkles className="h-4 w-4 mr-2" />
             Criar Campanha
@@ -152,6 +192,10 @@ export default function AITools() {
           <TabsTrigger value="trends">
             <TrendingUp className="h-4 w-4 mr-2" />
             Tendências
+          </TabsTrigger>
+          <TabsTrigger value="messages">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Mensagens
           </TabsTrigger>
         </TabsList>
 
@@ -362,6 +406,17 @@ export default function AITools() {
                             <span>💰 {product.sales} vendas</span>
                             <span>⭐ {product.rating}</span>
                           </div>
+                          {product.url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full mt-2"
+                              onClick={() => window.open(product.url, '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Ver Produto
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -375,6 +430,102 @@ export default function AITools() {
                   <div className="p-4 bg-muted rounded-lg">
                     <h3 className="font-semibold mb-2">💡 Recomendações</h3>
                     <p className="whitespace-pre-wrap">{trendResult.recommendations}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Message Enhancer Tab */}
+        <TabsContent value="messages" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>✨ Criador de Mensagens Personalizadas</CardTitle>
+              <CardDescription>
+                Cole os links dos produtos da Shopee e escolha o estilo de copy para criar mensagens persuasivas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder='Cole os links dos produtos aqui, um por linha&#10;Ex:&#10;https://shopee.com.br/produto1&#10;https://shopee.com.br/produto2'
+                value={productLinks}
+                onChange={(e) => setProductLinks(e.target.value)}
+                rows={5}
+              />
+
+              <Select value={copyStyle} onValueChange={setCopyStyle}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o estilo de copy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aggressive">🔥 Venda Agressiva</SelectItem>
+                  <SelectItem value="scarcity">⏰ Escassez e Urgência</SelectItem>
+                  <SelectItem value="emotional">❤️ Apelo Emocional</SelectItem>
+                  <SelectItem value="benefit">💎 Foco em Benefícios</SelectItem>
+                  <SelectItem value="social">👥 Prova Social</SelectItem>
+                  <SelectItem value="storytelling">📖 Storytelling</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button onClick={handleEnhanceMessage} disabled={loading} className="w-full">
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Criando mensagens...
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Gerar Mensagens
+                  </>
+                )}
+              </Button>
+
+              {messageResult && (
+                <div className="mt-6 space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2">📝 Informações dos Produtos</h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{messageResult.productInfo}</p>
+                  </div>
+
+                  {messageResult.messages?.map((msg: any, i: number) => (
+                    <div key={i} className="p-4 bg-muted rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold">💬 Opção {i + 1}: {msg.style}</h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.message);
+                            toast({
+                              title: "Copiado!",
+                              description: "Mensagem copiada para a área de transferência",
+                            });
+                          }}
+                        >
+                          Copiar
+                        </Button>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm">{msg.message}</p>
+                      <div className="mt-2 pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          <strong>Por que funciona:</strong> {msg.reason}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2">💡 Dicas de Uso</h3>
+                    <ul className="text-sm space-y-1">
+                      {messageResult.tips?.map((tip: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               )}

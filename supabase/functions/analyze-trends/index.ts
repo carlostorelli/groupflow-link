@@ -30,6 +30,15 @@ serve(async (req) => {
     
     const platformName = platformNames[platform] || 'Shopee';
 
+    const platformUrls: Record<string, string> = {
+      shopee: 'https://shopee.com.br',
+      shein: 'https://br.shein.com',
+      mercadolivre: 'https://mercadolivre.com.br',
+      aliexpress: 'https://pt.aliexpress.com'
+    };
+
+    const baseUrl = platformUrls[platform] || platformUrls.shopee;
+
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -54,6 +63,7 @@ Gere uma análise completa em formato JSON com:
    - price: Faixa de preço estimada (ex: "R$ 50 - R$ 80")
    - sales: Número estimado de vendas recentes (ex: "2.5k")
    - rating: Avaliação (ex: "4.8")
+   - url: URL completa e realista do produto usando ${baseUrl} como base (crie URLs que pareçam reais com slugs apropriados)
 2. marketAnalysis: Análise detalhada do mercado para essa categoria (3-4 parágrafos)
 3. recommendations: Recomendações estratégicas para sellers (3-4 parágrafos)
 
