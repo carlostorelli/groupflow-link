@@ -2,13 +2,17 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Phone, Mail } from "lucide-react";
+import { Search, Phone, Mail, Plus, Loader2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { z } from "zod";
 
 interface User {
   id: string;
@@ -19,12 +23,27 @@ interface User {
   updated_at: string;
 }
 
+const createUserSchema = z.object({
+  email: z.string().trim().email({ message: "Email inválido" }).max(255),
+  password: z.string().min(6, { message: "Senha deve ter no mínimo 6 caracteres" }).max(72),
+  phone_number: z.string().trim().max(20).optional().or(z.literal("")),
+  plan: z.enum(["free", "pro", "elite"])
+});
+
 export default function UsersTab() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    phone_number: "",
+    plan: "free"
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -88,6 +107,64 @@ export default function UsersTab() {
     window.open(`https://wa.me/${cleanNumber}`, '_blank');
   };
 
+  const handleCreateUser = async () => {
+    try {
+      // Validar dados
+      const validatedData = createUserSchema.parse(formData);
+
+      setCreating(true);
+
+      // Criar usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: validatedData.email,
+        password: validatedData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            phone_number: validatedData.phone_number || null
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) {
+        throw new Error("Falha ao criar usuário");
+      }
+
+      // Atualizar profile com plano e telefone
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          plan: validatedData.plan,
+          phone_number: validatedData.phone_number || null
+        })
+        .eq('id', authData.user.id);
+
+      if (profileError) throw profileError;
+
+      toast.success("Usuário criado com sucesso!");
+      setIsDialogOpen(false);
+      setFormData({
+        email: "",
+        password: "",
+        phone_number: "",
+        plan: "free"
+      });
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Erro ao criar usuário:', error);
+      if (error instanceof z.ZodError) {
+        const firstError = error.errors[0];
+        toast.error(firstError.message);
+      } else {
+        toast.error(error.message || "Erro ao criar usuário");
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const getPlanBadge = (plan: string) => {
     const colors: Record<string, string> = {
       free: "secondary",
@@ -102,10 +179,92 @@ export default function UsersTab() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Usuários</CardTitle>
-          <CardDescription>
-            Visualize e gerencie todos os usuários da plataforma
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Gerenciamento de Usuários</CardTitle>
+              <CardDescription>
+                Visualize e gerencie todos os usuários da plataforma
+              </CardDescription>
+            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Usuário
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Novo Usuário</DialogTitle>
+                  <DialogDescription>
+                    Preencha os dados para criar um novo usuário manualmente
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="usuario@exemplo.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Mínimo 6 caracteres"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone (WhatsApp)</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+5511999999999"
+                      value={formData.phone_number}
+                      onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="plan">Plano *</Label>
+                    <Select value={formData.plan} onValueChange={(value) => setFormData({...formData, plan: value})}>
+                      <SelectTrigger id="plan">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="pro">Pro</SelectItem>
+                        <SelectItem value="elite">Elite</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button onClick={handleCreateUser} disabled={creating} className="w-full">
+                    {creating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Criando...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Criar Usuário
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filtros */}
