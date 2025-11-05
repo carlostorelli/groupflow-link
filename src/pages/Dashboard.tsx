@@ -49,25 +49,25 @@ export default function Dashboard() {
       title: "Total de Grupos",
       value: stats.totalGroups,
       icon: Users,
-      gradient: "bg-gradient-primary",
+      iconColor: "bg-[#10b981]",
     },
     {
       title: "Grupos Cheios",
       value: stats.fullGroups,
       icon: UserCheck,
-      gradient: "bg-gradient-success",
+      iconColor: "bg-[#10b981]",
     },
     {
       title: "Total de Membros",
       value: stats.totalMembers,
       icon: TrendingUp,
-      gradient: "bg-gradient-primary",
+      iconColor: "bg-[#10b981]",
     },
     {
       title: "Links Ativos",
       value: stats.activeLinks,
       icon: Link2,
-      gradient: "bg-gradient-success",
+      iconColor: "bg-[#10b981]",
     },
   ];
 
@@ -87,7 +87,7 @@ export default function Dashboard() {
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {card.title}
               </CardTitle>
-              <div className={`p-2 rounded-lg ${card.gradient}`}>
+              <div className={`p-2 rounded-lg ${card.iconColor}`}>
                 <card.icon className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
