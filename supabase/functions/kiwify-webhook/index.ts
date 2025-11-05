@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WEBHOOK_TOKEN = 'ppwef2elcdu';
+const WEBHOOK_TOKEN = Deno.env.get('KIWIFY_WEBHOOK_TOKEN');
 
 interface KiwifyWebhook {
   email: string;

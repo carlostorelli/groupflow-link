@@ -16,7 +16,7 @@ interface Setting {
 export default function SettingsTab() {
   const [settings, setSettings] = useState({
     resend_api_key: "",
-    kiwify_webhook_token: "ppwef2elcdu",
+    kiwify_webhook_token: "",
     evolution_api_key: "",
     evolution_api_url: "",
   });
@@ -43,7 +43,7 @@ export default function SettingsTab() {
 
       setSettings({
         resend_api_key: settingsMap.resend_api_key || "",
-        kiwify_webhook_token: settingsMap.kiwify_webhook_token || "ppwef2elcdu",
+        kiwify_webhook_token: settingsMap.kiwify_webhook_token || "",
         evolution_api_key: settingsMap.evolution_api_key || "",
         evolution_api_url: settingsMap.evolution_api_url || "",
       });
@@ -143,13 +143,13 @@ export default function SettingsTab() {
             <Label htmlFor="kiwify_webhook_token">Token de Segurança</Label>
             <Input
               id="kiwify_webhook_token"
-              type="text"
-              placeholder="Token"
+              type="password"
+              placeholder="••••••••••••"
               value={settings.kiwify_webhook_token}
               onChange={(e) => setSettings({...settings, kiwify_webhook_token: e.target.value})}
             />
             <p className="text-xs text-muted-foreground">
-              Este token é usado para validar requisições de webhook da Kiwify
+              Este token é usado para validar requisições de webhook da Kiwify. Configure o mesmo token no painel da Kiwify.
             </p>
           </div>
         </CardContent>

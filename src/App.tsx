@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminRoute } from "@/components/AdminRoute";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import WhatsApp from "./pages/WhatsApp";
@@ -124,11 +125,11 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <AdminRoute>
                   <AppLayout>
                     <Admin />
                   </AppLayout>
-                </ProtectedRoute>
+                </AdminRoute>
               }
             />
 

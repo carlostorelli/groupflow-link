@@ -127,12 +127,25 @@ export default function DashboardTab({ onStatsUpdate }: DashboardTabProps) {
     setLoading(true);
 
     try {
+      // Get webhook token from settings
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'kiwify_webhook_token')
+        .single();
+
+      if (!settingsData?.value) {
+        toast.error("Token do webhook não configurado");
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('kiwify-webhook', {
         body: {
           email,
           evento: event,
           produto: product || undefined,
-          token: 'ppwef2elcdu'
+          token: settingsData.value
         }
       });
 
@@ -327,7 +340,7 @@ export default function DashboardTab({ onStatsUpdate }: DashboardTabProps) {
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2">
-            Token de segurança: <code className="bg-muted px-2 py-1 rounded">ppwef2elcdu</code>
+            Configure o token de segurança nas <a href="/admin" className="underline">configurações</a> e use o mesmo token no painel da Kiwify.
           </p>
         </CardContent>
       </Card>
