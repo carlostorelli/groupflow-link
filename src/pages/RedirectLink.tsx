@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, Settings, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -14,6 +15,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const mockGroupsForRedirect = [
   { id: "1", name: "Grupo 1", priority: 1, members: 245, limit: 500 },
@@ -22,11 +31,44 @@ const mockGroupsForRedirect = [
   { id: "4", name: "Grupo VIP", priority: 4, members: 89, limit: 500 },
 ];
 
+const allGroups = [
+  { id: "1", name: "Grupo 1", members: 245, limit: 500 },
+  { id: "2", name: "Grupo 2", members: 180, limit: 500 },
+  { id: "3", name: "Grupo 3", members: 320, limit: 500 },
+  { id: "4", name: "Grupo VIP", members: 89, limit: 500 },
+  { id: "5", name: "Grupo Teste", members: 150, limit: 500 },
+];
+
 export default function RedirectLink() {
   const [slug, setSlug] = useState("meu-grupo");
   const [hasLink, setHasLink] = useState(false);
   const [groupPriorities, setGroupPriorities] = useState(mockGroupsForRedirect);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(["1", "2", "3", "4"]);
   const { toast } = useToast();
+
+  const toggleGroupSelection = (groupId: string) => {
+    setSelectedGroupIds(prev => {
+      if (prev.includes(groupId)) {
+        return prev.filter(id => id !== groupId);
+      } else {
+        return [...prev, groupId];
+      }
+    });
+  };
+
+  const applyGroupSelection = () => {
+    const selectedGroups = allGroups
+      .filter(g => selectedGroupIds.includes(g.id))
+      .map((g, index) => ({
+        ...g,
+        priority: index + 1
+      }));
+    setGroupPriorities(selectedGroups);
+    toast({
+      title: "Grupos atualizados",
+      description: `${selectedGroups.length} grupo(s) selecionado(s) para este link`,
+    });
+  };
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -116,6 +158,53 @@ export default function RedirectLink() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Use apenas letras minúsculas, números e hífens
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Grupos da Campanha</Label>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    Selecionar Grupos ({selectedGroupIds.length})
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Selecionar Grupos</DialogTitle>
+                    <DialogDescription>
+                      Escolha os grupos que farão parte desta campanha
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                      {allGroups.map((group) => (
+                        <div key={group.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`link-group-${group.id}`}
+                            checked={selectedGroupIds.includes(group.id)}
+                            onCheckedChange={() => toggleGroupSelection(group.id)}
+                          />
+                          <Label
+                            htmlFor={`link-group-${group.id}`}
+                            className="text-sm font-normal cursor-pointer flex-1"
+                          >
+                            {group.name}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({group.members}/{group.limit})
+                            </span>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    <Button onClick={applyGroupSelection} className="w-full">
+                      Aplicar Seleção
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <p className="text-xs text-muted-foreground">
+                {selectedGroupIds.length} grupo(s) selecionado(s) para esta campanha
               </p>
             </div>
 
