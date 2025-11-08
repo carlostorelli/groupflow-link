@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AtSign, Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,15 +41,18 @@ import { Lock, Unlock, MessageSquare, FileEdit, Type, Image as ImageIcon, Sparkl
 import { cn } from "@/lib/utils";
 import { CreateMultipleGroups } from "@/components/CreateMultipleGroups";
 
-const mockGroups = [
-  { id: "1", name: "Grupo VIP 1", members: 245, limit: 500, status: "open" },
-  { id: "2", name: "Grupo VIP 2", members: 487, limit: 500, status: "open" },
-  { id: "3", name: "Grupo Premium", members: 500, limit: 500, status: "full" },
-  { id: "4", name: "Suporte Clientes", members: 156, limit: 300, status: "closed" },
-];
+interface Group {
+  id: string;
+  name: string;
+  members_count: number;
+  member_limit: number;
+  status: string;
+  wa_group_id: string;
+}
 
 export default function Groups() {
-  const [groups] = useState(mockGroups);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [description, setDescription] = useState("");
@@ -59,6 +62,35 @@ export default function Groups() {
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [mentionOpen, setMentionOpen] = useState(false);
   const { toast } = useToast();
+
+  // Carregar grupos do banco
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const loadGroups = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('groups')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setGroups(data || []);
+      console.log('✅ Grupos carregados:', data?.length);
+    } catch (error: any) {
+      console.error('Erro ao carregar grupos:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar grupos",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const insertMention = (mention: string) => {
     setMessage(prev => prev + mention);
@@ -185,6 +217,17 @@ export default function Groups() {
     const variant = variants[status] || variants.open;
     return <Badge className={variant.className}>{variant.label}</Badge>;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-muted-foreground">Carregando grupos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -448,9 +491,12 @@ export default function Groups() {
 
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Seus Grupos</CardTitle>
+          <CardTitle>Seus Grupos ({groups.length})</CardTitle>
           <CardDescription>
-            Lista completa de grupos importados
+            {groups.length === 0 
+              ? "Nenhum grupo importado ainda. Vá para a página WhatsApp e clique em 'Importar Grupos'"
+              : "Lista completa de grupos importados"
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -470,20 +516,28 @@ export default function Groups() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedGroups.includes(group.id)}
-                      onCheckedChange={() => toggleGroup(group.id)}
-                    />
+              {groups.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhum grupo encontrado
                   </TableCell>
-                  <TableCell className="font-medium">{group.name}</TableCell>
-                  <TableCell>{group.members}</TableCell>
-                  <TableCell>{group.limit}</TableCell>
-                  <TableCell>{getStatusBadge(group.status)}</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                groups.map((group) => (
+                  <TableRow key={group.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedGroups.includes(group.id)}
+                        onCheckedChange={() => toggleGroup(group.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{group.name}</TableCell>
+                    <TableCell>{group.members_count}</TableCell>
+                    <TableCell>{group.member_limit}</TableCell>
+                    <TableCell>{getStatusBadge(group.status)}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

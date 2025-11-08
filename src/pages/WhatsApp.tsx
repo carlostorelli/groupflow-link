@@ -372,6 +372,8 @@ export default function WhatsApp() {
         }
       }
 
+      // Garantir que chegue em 100%
+      setImportProgress(100);
       setLastSync(new Date());
 
       if (!isSilent) {
