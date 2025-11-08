@@ -81,6 +81,8 @@ export default function SettingsTab() {
             value: setting.value,
             description: setting.description,
             updated_by: user?.id,
+          }, {
+            onConflict: 'key'
           });
 
         if (error) throw error;
