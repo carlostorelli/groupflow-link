@@ -45,6 +45,9 @@ serve(async (req) => {
 
     // Verificar se a instância existe e está conectada
     console.log('Verificando status da instância:', instanceName);
+    console.log('URL da Evolution API:', apiUrl);
+    console.log('URL completa:', `${apiUrl}/instance/connectionState/${encodedInstanceName}`);
+    
     const statusResponse = await fetch(
       `${apiUrl}/instance/connectionState/${encodedInstanceName}`,
       {
@@ -54,9 +57,25 @@ serve(async (req) => {
       }
     );
 
+    console.log('Status response:', statusResponse.status);
+
     if (!statusResponse.ok) {
       if (statusResponse.status === 404) {
-        throw new Error(`Instância "${instanceName}" não encontrada. Verifique se ela existe na Evolution API.`);
+        // Atualizar status no banco de dados para disconnected
+        await fetch(
+          `${supabaseUrl}/rest/v1/instances?instance_id=eq.${encodeURIComponent(instanceName)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: 'disconnected' }),
+          }
+        );
+        
+        throw new Error(`Instância "${instanceName}" não encontrada na Evolution API. O status foi atualizado para desconectado. Por favor, reconecte seu WhatsApp na página de conexão.`);
       }
       throw new Error(`Erro ao verificar status da instância: ${statusResponse.status}`);
     }
@@ -65,7 +84,21 @@ serve(async (req) => {
     console.log('Status da instância:', statusData);
 
     if (statusData.instance?.state !== 'open') {
-      throw new Error(`Instância "${instanceName}" não está conectada. Status: ${statusData.instance?.state || 'desconhecido'}`);
+      // Atualizar status no banco de dados
+      await fetch(
+        `${supabaseUrl}/rest/v1/instances?instance_id=eq.${encodeURIComponent(instanceName)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status: 'disconnected' }),
+        }
+      );
+      
+      throw new Error(`Instância "${instanceName}" não está conectada. Status: ${statusData.instance?.state || 'desconhecido'}. Por favor, reconecte seu WhatsApp.`);
     }
 
     console.log('Enviando para Evolution API:', `${apiUrl}/message/sendText/${encodedInstanceName}`);
