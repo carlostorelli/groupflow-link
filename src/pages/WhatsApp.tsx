@@ -118,28 +118,41 @@ export default function WhatsApp() {
 
       if (error) throw error;
 
+      console.log('✅ Verificação periódica (30s):', {
+        instanceName,
+        status: data.instance?.state,
+        timestamp: new Date().toISOString()
+      });
+
       const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
       const currentStatus = data.instance?.state || data.rawData?.instance?.state;
       
       if (data.success && currentStatus && connectedStatuses.includes(currentStatus)) {
         if (!connected) {
+          console.log('🔄 Reconectado automaticamente');
           setConnected(true);
           await updateInstanceStatus('connected');
         }
       } else {
         // Se não está mais conectado, atualizar estado
         if (connected) {
+          console.log('❌ Conexão perdida detectada:', {
+            previousStatus: 'connected',
+            currentStatus,
+            timestamp: new Date().toISOString()
+          });
           setConnected(false);
           await updateInstanceStatus('disconnected');
           toast({
             variant: "destructive",
             title: "Conexão perdida",
-            description: "Sua instância foi desconectada",
+            description: `WhatsApp desconectado (status: ${currentStatus}). Clique em "Reconectar" para gerar novo QR Code.`,
+            duration: 10000,
           });
         }
       }
     } catch (error) {
-      console.error('Erro ao verificar status:', error);
+      console.error('❌ Erro ao verificar status:', error);
     }
   };
 
@@ -259,20 +272,33 @@ export default function WhatsApp() {
                 <p className="text-sm text-muted-foreground">
                   Sua instância está ativa e funcionando
                 </p>
-                <Button 
-                  variant="outline"
-                  onClick={async () => {
-                    if (instanceId) {
-                      await updateInstanceStatus('disconnected');
-                    }
-                    setConnected(false);
-                    setInstanceName("");
-                    setInstanceId(null);
-                  }}
-                  className="w-full"
-                >
-                  Desconectar
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={async () => {
+                      setConnecting(true);
+                      await handleConnect();
+                    }}
+                    disabled={connecting}
+                    className="flex-1"
+                  >
+                    Reconectar
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={async () => {
+                      if (instanceId) {
+                        await updateInstanceStatus('disconnected');
+                      }
+                      setConnected(false);
+                      setInstanceName("");
+                      setInstanceId(null);
+                    }}
+                    className="flex-1"
+                  >
+                    Desconectar
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
