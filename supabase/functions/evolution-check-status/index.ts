@@ -55,6 +55,24 @@ serve(async (req) => {
     if (!evolutionResponse.ok) {
       const errorText = await evolutionResponse.text();
       console.error('Erro na resposta da Evolution API:', evolutionResponse.status, errorText);
+      
+      // Handle 404 specifically (instance doesn't exist)
+      if (evolutionResponse.status === 404) {
+        console.log('Instância não encontrada (404) - retornando status not_found');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: 'not_found',
+            instance: null,
+            rawData: { error: errorText }
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200 
+          }
+        );
+      }
+      
       throw new Error('Erro ao verificar status da instância');
     }
 

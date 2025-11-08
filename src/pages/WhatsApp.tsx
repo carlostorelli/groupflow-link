@@ -155,6 +155,25 @@ export default function WhatsApp() {
         timestamp: new Date().toISOString()
       });
 
+      // Handle instance not found
+      if (data.status === 'not_found') {
+        if (connected) {
+          console.log('❌ Instância não existe mais:', {
+            instanceName,
+            timestamp: new Date().toISOString()
+          });
+          setConnected(false);
+          await updateInstanceStatus('disconnected');
+          toast({
+            variant: "destructive",
+            title: "Conexão perdida",
+            description: "A instância não existe mais. Clique em 'Reconectar' para criar uma nova.",
+            duration: 10000,
+          });
+        }
+        return;
+      }
+
       const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
       const currentStatus = data.instance?.state || data.rawData?.instance?.state;
       
