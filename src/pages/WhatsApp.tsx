@@ -10,12 +10,46 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function WhatsApp() {
   const [instanceName, setInstanceName] = useState("");
+  const [instanceId, setInstanceId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const { toast } = useToast();
 
+  // Carregar estado da conexão do banco ao montar
+  useEffect(() => {
+    const loadConnectionState = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: instances, error } = await supabase
+          .from('instances')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'connected')
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (instances && instances.length > 0) {
+          const instance = instances[0];
+          setInstanceName(instance.instance_id);
+          setInstanceId(instance.id);
+          setConnected(true);
+          console.log('Estado da conexão carregado:', instance);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar estado da conexão:', error);
+      }
+    };
+
+    loadConnectionState();
+  }, []);
+
+  // Polling durante a conexão
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -29,6 +63,85 @@ export default function WhatsApp() {
       if (interval) clearInterval(interval);
     };
   }, [connecting, instanceName]);
+
+  // Polling periódico para manter status atualizado (a cada 30s)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (connected && instanceName && !connecting) {
+      interval = setInterval(() => {
+        verifyConnectionStatus();
+      }, 30000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connected, instanceName, connecting]);
+
+  const updateInstanceStatus = async (status: 'pending' | 'connected' | 'disconnected') => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('instances')
+        .upsert({
+          instance_id: instanceName,
+          user_id: user.id,
+          status: status,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'instance_id,user_id'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        setInstanceId(data.id);
+        console.log('Status da instância atualizado no banco:', data);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status da instância:', error);
+    }
+  };
+
+  const verifyConnectionStatus = async () => {
+    if (!instanceName) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-check-status', {
+        body: { instanceName }
+      });
+
+      if (error) throw error;
+
+      const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
+      const currentStatus = data.instance?.state || data.rawData?.instance?.state;
+      
+      if (data.success && currentStatus && connectedStatuses.includes(currentStatus)) {
+        if (!connected) {
+          setConnected(true);
+          await updateInstanceStatus('connected');
+        }
+      } else {
+        // Se não está mais conectado, atualizar estado
+        if (connected) {
+          setConnected(false);
+          await updateInstanceStatus('disconnected');
+          toast({
+            variant: "destructive",
+            title: "Conexão perdida",
+            description: "Sua instância foi desconectada",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+    }
+  };
 
   const checkStatus = async () => {
     if (!instanceName) return;
@@ -51,6 +164,7 @@ export default function WhatsApp() {
         setConnected(true);
         setConnecting(false);
         setQrCode(null);
+        await updateInstanceStatus('connected');
         toast({
           title: "WhatsApp conectado!",
           description: "Sua instância foi conectada com sucesso",
@@ -147,9 +261,13 @@ export default function WhatsApp() {
                 </p>
                 <Button 
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
+                    if (instanceId) {
+                      await updateInstanceStatus('disconnected');
+                    }
                     setConnected(false);
                     setInstanceName("");
+                    setInstanceId(null);
                   }}
                   className="w-full"
                 >
