@@ -15,8 +15,16 @@ export default function WhatsApp() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [importingGroups, setImportingGroups] = useState(false);
+  const [instanceId, setInstanceId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // Load existing instance from database on mount
+  useEffect(() => {
+    loadExistingInstance();
+  }, []);
+
+  // Poll for status updates while connecting
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -30,6 +38,84 @@ export default function WhatsApp() {
       if (interval) clearInterval(interval);
     };
   }, [connecting, instanceName]);
+
+  // Real-time sync: poll database for connection state changes
+  useEffect(() => {
+    let syncInterval: NodeJS.Timeout;
+    
+    if (instanceId) {
+      syncInterval = setInterval(() => {
+        syncConnectionState();
+      }, 5000);
+    }
+    
+    return () => {
+      if (syncInterval) clearInterval(syncInterval);
+    };
+  }, [instanceId]);
+
+  const loadExistingInstance = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: instances, error } = await supabase
+        .from('instances')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'connected')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (instances && instances.length > 0) {
+        const instance = instances[0];
+        setInstanceName(instance.instance_id);
+        setInstanceId(instance.id);
+        setConnected(true);
+        setConnecting(false);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar instância:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncConnectionState = async () => {
+    if (!instanceId) return;
+    
+    try {
+      const { data: instance, error } = await supabase
+        .from('instances')
+        .select('status, instance_id')
+        .eq('id', instanceId)
+        .single();
+
+      if (error) throw error;
+
+      if (instance) {
+        const isConnected = instance.status === 'connected';
+        setConnected(isConnected);
+        setConnecting(false);
+        
+        if (!isConnected && connected) {
+          toast({
+            variant: "destructive",
+            title: "Desconectado",
+            description: "A instância foi desconectada",
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao sincronizar estado:', error);
+    }
+  };
 
   const checkStatus = async () => {
     if (!instanceName) return;
@@ -52,13 +138,17 @@ export default function WhatsApp() {
         setConnected(true);
         setConnecting(false);
         setQrCode(null);
+        
+        // Update instance status in database
+        await updateInstanceStatus('connected');
+        
         toast({
           title: "WhatsApp conectado!",
-          description: "Importando seus grupos...",
+          description: "Verificando importação de grupos...",
         });
         
-        // Import groups automatically
-        await importGroups();
+        // Import groups with verification
+        await importGroupsWithVerification();
       }
     } catch (error: any) {
       console.error('Erro ao verificar status:', error);
@@ -67,10 +157,75 @@ export default function WhatsApp() {
     }
   };
 
+  const updateInstanceStatus = async (status: 'connected' | 'pending' | 'disconnected') => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: instance, error } = await supabase
+        .from('instances')
+        .upsert({
+          instance_id: instanceName,
+          user_id: user.id,
+          status: status,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'instance_id,user_id'
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      
+      if (instance) {
+        setInstanceId(instance.id);
+      }
+    } catch (error: any) {
+      console.error('Erro ao atualizar status da instância:', error);
+    }
+  };
+
+  const importGroupsWithVerification = async () => {
+    setImportingGroups(true);
+    
+    try {
+      // Attempt to import groups
+      await importGroups();
+      
+      // Wait and verify if groups were imported
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check if groups exist in database
+      const { data: groups, error } = await supabase
+        .from('groups')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      if (!groups || groups.length === 0) {
+        // Fallback: retry import after 3 seconds
+        toast({
+          title: "Tentando novamente...",
+          description: "Aguardando confirmação dos grupos",
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await importGroups();
+      }
+    } catch (error: any) {
+      console.error('Erro na verificação de importação:', error);
+    } finally {
+      setImportingGroups(false);
+    }
+  };
+
   const importGroups = async () => {
     if (!instanceName) return;
     
-    setImportingGroups(true);
     try {
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
         body: { instanceName }
@@ -93,8 +248,7 @@ export default function WhatsApp() {
         title: "Erro ao importar grupos",
         description: error.message || "Não foi possível importar os grupos. Tente novamente.",
       });
-    } finally {
-      setImportingGroups(false);
+      throw error;
     }
   };
 
@@ -112,6 +266,9 @@ export default function WhatsApp() {
     setQrCode(null);
     
     try {
+      // Update instance status to pending
+      await updateInstanceStatus('pending');
+      
       const { data, error } = await supabase.functions.invoke('evolution-create-instance', {
         body: { instanceName }
       });
@@ -137,8 +294,28 @@ export default function WhatsApp() {
         description: error.message || "Erro ao gerar QR Code. Verifique as configurações da Evolution API no painel de Admin.",
       });
       setConnecting(false);
+      await updateInstanceStatus('disconnected');
     }
   };
+
+  const handleDisconnect = async () => {
+    await updateInstanceStatus('disconnected');
+    setConnected(false);
+    setInstanceName("");
+    setInstanceId(null);
+    toast({
+      title: "Desconectado",
+      description: "Instância desconectada com sucesso",
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -200,10 +377,7 @@ export default function WhatsApp() {
                   </Button>
                   <Button 
                     variant="outline"
-                    onClick={() => {
-                      setConnected(false);
-                      setInstanceName("");
-                    }}
+                    onClick={handleDisconnect}
                     className="flex-1"
                   >
                     Desconectar
