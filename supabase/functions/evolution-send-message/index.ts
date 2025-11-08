@@ -40,7 +40,9 @@ serve(async (req) => {
       throw new Error('Configurações da Evolution API não encontradas');
     }
 
-    console.log('Enviando para Evolution API:', `${apiUrl}/message/sendText/${instanceName}`);
+    // Encode instance name for URL
+    const encodedInstanceName = encodeURIComponent(instanceName);
+    console.log('Enviando para Evolution API:', `${apiUrl}/message/sendText/${encodedInstanceName}`);
 
     // Preparar payload
     const payload: any = {
@@ -55,7 +57,7 @@ serve(async (req) => {
 
     // Enviar mensagem via Evolution API
     const evolutionResponse = await fetch(
-      `${apiUrl}/message/sendText/${instanceName}`,
+      `${apiUrl}/message/sendText/${encodedInstanceName}`,
       {
         method: 'POST',
         headers: {
