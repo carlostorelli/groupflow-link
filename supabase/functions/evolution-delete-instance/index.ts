@@ -17,6 +17,8 @@ serve(async (req) => {
       throw new Error('Nome da instância é obrigatório');
     }
 
+    console.log('Deletando instância:', instanceName);
+
     // Buscar configurações da Evolution API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -36,53 +38,31 @@ serve(async (req) => {
     const apiKey = settings.find((s: any) => s.key === 'evolution_api_key')?.value;
 
     if (!apiUrl || !apiKey) {
-      throw new Error('Configurações da Evolution API não encontradas. Configure no painel de Admin.');
+      throw new Error('Configurações da Evolution API não encontradas');
     }
 
-    // Tentar deletar instância antiga primeiro (caso exista)
-    try {
-      await fetch(`${apiUrl}/instance/delete/${instanceName}`, {
+    // Deletar instância da Evolution API
+    const evolutionResponse = await fetch(
+      `${apiUrl}/instance/delete/${instanceName}`,
+      {
         method: 'DELETE',
-        headers: { 'apikey': apiKey },
-      });
-      console.log('Instância antiga deletada');
-    } catch (e) {
-      console.log('Nenhuma instância antiga para deletar');
-    }
-
-    // Criar instância na Evolution API
-    const evolutionResponse = await fetch(`${apiUrl}/instance/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apiKey,
-      },
-      body: JSON.stringify({
-        instanceName: instanceName,
-        qrcode: true,
-        integration: 'WHATSAPP-BAILEYS',
-      }),
-    });
+        headers: {
+          'apikey': apiKey,
+        },
+      }
+    );
 
     if (!evolutionResponse.ok) {
-      const errorData = await evolutionResponse.json().catch(() => ({}));
-      console.error('Erro na Evolution API:', errorData);
-      
-      // Se o erro for de nome duplicado, tentar reconectar
-      if (errorData?.response?.message?.[0]?.includes('already in use')) {
-        throw new Error('Esta instância já existe. Por favor, use outro nome ou aguarde alguns segundos.');
-      }
-      
-      throw new Error(`Erro na Evolution API: ${JSON.stringify(errorData)}`);
+      const errorText = await evolutionResponse.text();
+      console.error('Erro ao deletar instância na Evolution API:', errorText);
+      // Não lançar erro, pois a instância pode não existir
     }
 
-    const evolutionData = await evolutionResponse.json();
+    console.log('Instância deletada com sucesso');
 
     return new Response(
       JSON.stringify({
         success: true,
-        instance: evolutionData.instance,
-        qrcode: evolutionData.qrcode,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -91,7 +71,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Erro ao criar instância:', error);
+    console.error('Erro ao deletar instância:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 

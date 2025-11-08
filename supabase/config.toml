@@ -75,3 +75,6 @@ verify_jwt = true
 
 [functions.evolution-fetch-groups]
 verify_jwt = true
+
+[functions.evolution-delete-instance]
+verify_jwt = true

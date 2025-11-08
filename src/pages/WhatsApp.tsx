@@ -204,13 +204,32 @@ export default function WhatsApp() {
     setQrCode(null);
     
     try {
+      console.log('🔄 Iniciando conexão com instância:', instanceName);
+      
+      // Deletar instância antiga se existir
+      try {
+        await supabase.functions.invoke('evolution-delete-instance', {
+          body: { instanceName }
+        });
+        console.log('✅ Instância antiga removida');
+        // Aguardar 2 segundos para garantir que foi deletada
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.log('ℹ️ Nenhuma instância antiga para remover');
+      }
+
+      // Criar nova instância
       const { data, error } = await supabase.functions.invoke('evolution-create-instance', {
         body: { instanceName }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro na função:', error);
+        throw error;
+      }
 
       if (data.success) {
+        console.log('✅ Instância criada:', data.instance);
         if (data.qrcode?.base64) {
           setQrCode(data.qrcode.base64);
           toast({
@@ -222,13 +241,15 @@ export default function WhatsApp() {
         throw new Error(data.error || 'Erro ao criar instância');
       }
     } catch (error: any) {
-      console.error('Erro ao conectar:', error);
+      console.error('❌ Erro ao conectar:', error);
       toast({
         variant: "destructive",
         title: "Erro ao conectar",
         description: error.message || "Erro ao gerar QR Code. Verifique as configurações da Evolution API no painel de Admin.",
+        duration: 7000,
       });
       setConnecting(false);
+      setConnected(false);
     }
   };
 
