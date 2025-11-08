@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Lock, Unlock, MessageSquare, FileEdit, Type, Image as ImageIcon, Sparkles, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CreateMultipleGroups } from "@/components/CreateMultipleGroups";
+import { useNavigate } from "react-router-dom";
 
 interface Group {
   id: string;
@@ -62,12 +64,66 @@ export default function Groups() {
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [instanceName, setInstanceName] = useState<string>('');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Carregar grupos do banco
   useEffect(() => {
     loadGroups();
+    checkConnectionStatus();
+    
+    // Verificar status a cada 30 segundos
+    const interval = setInterval(checkConnectionStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const checkConnectionStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: instances } = await supabase
+        .from('instances')
+        .select('instance_id, status')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      if (!instances || instances.length === 0) {
+        setConnectionStatus('disconnected');
+        setInstanceName('');
+        return;
+      }
+
+      const instance = instances[0];
+      setInstanceName(instance.instance_id);
+
+      if (instance.status !== 'connected') {
+        setConnectionStatus('disconnected');
+        return;
+      }
+
+      // Verificar na Evolution API
+      const { data: statusData, error } = await supabase.functions.invoke('evolution-check-status', {
+        body: { instanceName: instance.instance_id }
+      });
+
+      if (error || !statusData?.state || statusData.state !== 'open') {
+        setConnectionStatus('disconnected');
+        // Atualizar status no banco
+        await supabase
+          .from('instances')
+          .update({ status: 'disconnected' })
+          .eq('instance_id', instance.instance_id);
+      } else {
+        setConnectionStatus('connected');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+      setConnectionStatus('disconnected');
+    }
+  };
 
   const loadGroups = async () => {
     try {
@@ -441,6 +497,38 @@ export default function Groups() {
         </div>
         <CreateMultipleGroups />
       </div>
+
+      {/* Alerta de Status da Conexão */}
+      {connectionStatus === 'disconnected' && (
+        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+          <WifiOff className="h-4 w-4" />
+          <AlertTitle>WhatsApp Desconectado</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              Sua instância {instanceName ? `"${instanceName}"` : ''} está desconectada. 
+              Reconecte para enviar mensagens.
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate('/whatsapp')}
+              className="ml-4 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            >
+              Reconectar Agora
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {connectionStatus === 'connected' && (
+        <Alert className="border-success/50 bg-success/10">
+          <Wifi className="h-4 w-4 text-success" />
+          <AlertTitle className="text-success">WhatsApp Conectado</AlertTitle>
+          <AlertDescription className="text-success/90">
+            Instância "{instanceName}" está conectada e pronta para enviar mensagens.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
