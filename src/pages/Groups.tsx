@@ -116,6 +116,150 @@ export default function Groups() {
     }
   };
 
+  const handleSendMessage = async () => {
+    if (selectedGroups.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nenhum grupo selecionado",
+        description: "Selecione pelo menos um grupo para executar esta ação",
+      });
+      return;
+    }
+
+    if (!message.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Mensagem vazia",
+        description: "Digite uma mensagem antes de enviar",
+      });
+      return;
+    }
+
+    // Criar registro no histórico
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: historyRecord, error: historyError } = await supabase
+      .from('action_history')
+      .insert({
+        user_id: user.id,
+        action_type: 'send_message',
+        description: `Enviando mensagem para ${selectedGroups.length} grupo(s)`,
+        status: 'running',
+        target_count: selectedGroups.length,
+      })
+      .select()
+      .single();
+
+    if (historyError) {
+      console.error('Erro ao criar histórico:', historyError);
+    }
+
+    // Processar menções
+    let processedMessage = message;
+    let mentions: string[] = [];
+
+    // Se contém @todos, buscar todos os membros dos grupos
+    if (message.includes('@todos')) {
+      // A Evolution API vai mencionar todos automaticamente se não passar o array de mentions
+      processedMessage = message.replace('@todos', '');
+      mentions = []; // Vazio = menciona todos
+    }
+
+    // Buscar instância
+    const { data: instances } = await supabase
+      .from('instances')
+      .select('instance_id')
+      .eq('user_id', user.id)
+      .eq('status', 'connected')
+      .limit(1);
+
+    if (!instances || instances.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nenhuma instância conectada",
+        description: "Conecte seu WhatsApp primeiro",
+      });
+      
+      if (historyRecord) {
+        await supabase
+          .from('action_history')
+          .update({
+            status: 'failed',
+            error_message: 'Nenhuma instância conectada',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', historyRecord.id);
+      }
+      return;
+    }
+
+    const instanceName = instances[0].instance_id;
+
+    // Buscar dados dos grupos selecionados
+    const { data: selectedGroupsData } = await supabase
+      .from('groups')
+      .select('wa_group_id, name')
+      .in('id', selectedGroups);
+
+    if (!selectedGroupsData) return;
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Enviar para cada grupo
+    for (const group of selectedGroupsData) {
+      try {
+        const { data, error } = await supabase.functions.invoke('evolution-send-message', {
+          body: {
+            instanceName,
+            groupId: group.wa_group_id,
+            message: processedMessage,
+            mentions: mentions.length > 0 ? mentions : undefined,
+          }
+        });
+
+        if (error || !data?.success) {
+          errorCount++;
+          console.error(`Erro ao enviar para ${group.name}:`, error || data?.error);
+        } else {
+          successCount++;
+          console.log(`✅ Mensagem enviada para ${group.name}`);
+        }
+
+        // Aguardar 1 segundo entre mensagens para evitar rate limit
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        errorCount++;
+        console.error(`Erro ao enviar para ${group.name}:`, error);
+      }
+    }
+
+    // Atualizar histórico
+    if (historyRecord) {
+      await supabase
+        .from('action_history')
+        .update({
+          status: errorCount === selectedGroupsData.length ? 'failed' : 'completed',
+          success_count: successCount,
+          error_count: errorCount,
+          error_message: errorCount > 0 ? `${errorCount} falhas ao enviar` : null,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', historyRecord.id);
+    }
+
+    toast({
+      title: "Mensagens enviadas",
+      description: `${successCount} enviadas com sucesso${errorCount > 0 ? `, ${errorCount} falharam` : ''}`,
+    });
+
+    // Limpar formulário
+    setMessage("");
+    setMediaFiles([]);
+    setSelectedGroups([]);
+  };
+
   const handleBulkAction = (action: string) => {
     if (selectedGroups.length === 0) {
       toast({
@@ -460,9 +604,10 @@ export default function Groups() {
 
                 <Button
                   className="w-full"
-                  onClick={() => handleBulkAction("Enviar mensagem")}
+                  onClick={handleSendMessage}
+                  disabled={!message.trim() || selectedGroups.length === 0}
                 >
-                  Enviar
+                  Enviar Mensagem
                 </Button>
               </div>
             </DialogContent>
