@@ -66,3 +66,12 @@ verify_jwt = true
 
 [functions.kiwify-webhook]
 verify_jwt = false
+
+[functions.evolution-create-instance]
+verify_jwt = true
+
+[functions.evolution-check-status]
+verify_jwt = true
+
+[functions.evolution-fetch-groups]
+verify_jwt = true

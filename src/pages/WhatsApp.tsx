@@ -1,17 +1,61 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, QrCode } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function WhatsApp() {
   const [instanceName, setInstanceName] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (connecting && instanceName) {
+      interval = setInterval(() => {
+        checkStatus();
+      }, 3000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connecting, instanceName]);
+
+  const checkStatus = async () => {
+    if (!instanceName) return;
+    
+    setCheckingStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-check-status', {
+        body: { instanceName }
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.status === 'open') {
+        setConnected(true);
+        setConnecting(false);
+        setQrCode(null);
+        toast({
+          title: "WhatsApp conectado!",
+          description: "Sua instância foi conectada com sucesso",
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao verificar status:', error);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const handleConnect = async () => {
     if (!instanceName.trim()) {
@@ -24,16 +68,35 @@ export default function WhatsApp() {
     }
 
     setConnecting(true);
+    setQrCode(null);
     
-    // Simulação - na versão real, chamará a Evolution API
-    setTimeout(() => {
-      setConnected(true);
-      setConnecting(false);
-      toast({
-        title: "WhatsApp conectado!",
-        description: "Sua instância foi conectada com sucesso",
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-create-instance', {
+        body: { instanceName }
       });
-    }, 2000);
+
+      if (error) throw error;
+
+      if (data.success) {
+        if (data.qrcode?.base64) {
+          setQrCode(data.qrcode.base64);
+          toast({
+            title: "QR Code gerado!",
+            description: "Escaneie o código com seu WhatsApp",
+          });
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao criar instância');
+      }
+    } catch (error: any) {
+      console.error('Erro ao conectar:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao conectar",
+        description: error.message || "Erro ao gerar QR Code. Verifique as configurações da Evolution API no painel de Admin.",
+      });
+      setConnecting(false);
+    }
   };
 
   return (
@@ -101,18 +164,29 @@ export default function WhatsApp() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-center p-8">
-              {connecting || connected ? (
-                <div className="bg-white p-8 rounded-lg shadow-glow">
-                  <div className="w-48 h-48 bg-background rounded-lg flex items-center justify-center">
-                    {connecting ? (
-                      <div className="text-center">
-                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
-                        <p className="text-sm">Gerando QR Code...</p>
-                      </div>
-                    ) : (
-                      <QrCode className="h-32 w-32 text-muted-foreground" />
-                    )}
-                  </div>
+              {qrCode ? (
+                <div className="bg-white p-4 rounded-lg shadow-glow">
+                  <img 
+                    src={qrCode} 
+                    alt="QR Code" 
+                    className="w-64 h-64"
+                  />
+                  {checkingStatus && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <p className="text-sm">Aguardando leitura...</p>
+                    </div>
+                  )}
+                </div>
+              ) : connecting ? (
+                <div className="text-center">
+                  <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+                  <p className="text-sm">Gerando QR Code...</p>
+                </div>
+              ) : connected ? (
+                <div className="text-center text-muted-foreground">
+                  <QrCode className="h-32 w-32 mx-auto mb-4 text-green-500" />
+                  <Badge className="bg-gradient-success">Conectado</Badge>
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground">
