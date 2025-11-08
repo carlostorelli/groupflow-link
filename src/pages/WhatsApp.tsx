@@ -352,7 +352,13 @@ export default function WhatsApp() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // Salvar no banco
+        // Determinar status do grupo baseado nas configurações
+        let groupStatus: 'open' | 'closed' | 'full' = 'open';
+        if (group.restrict || group.announce) {
+          groupStatus = 'closed';
+        }
+        
+        // Salvar no banco com dados corretos
         const { error: insertError } = await supabase
           .from('groups')
           .upsert({
@@ -362,8 +368,9 @@ export default function WhatsApp() {
             name: group.subject || 'Sem nome',
             description: group.desc || null,
             members_count: group.size || 0,
-            status: 'open',
-          }, {
+            member_limit: 1024,
+            status: groupStatus,
+          } as any, {
             onConflict: 'wa_group_id,user_id'
           });
 

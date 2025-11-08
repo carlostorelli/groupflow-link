@@ -39,9 +39,12 @@ serve(async (req) => {
       throw new Error('Configurações da Evolution API não encontradas');
     }
 
-    // Buscar grupos da instância
+    // Encode instance name for URL
+    const encodedInstanceName = encodeURIComponent(instanceName);
+    
+    // Buscar grupos da instância com participantes para ter o tamanho correto
     const evolutionResponse = await fetch(
-      `${apiUrl}/group/fetchAllGroups/${instanceName}?getParticipants=false`,
+      `${apiUrl}/group/fetchAllGroups/${encodedInstanceName}?getParticipants=true`,
       {
         headers: {
           'apikey': apiKey,
@@ -50,15 +53,28 @@ serve(async (req) => {
     );
 
     if (!evolutionResponse.ok) {
-      throw new Error('Erro ao buscar grupos da instância');
+      const errorText = await evolutionResponse.text();
+      console.error('Erro na Evolution API:', evolutionResponse.status, errorText);
+      throw new Error(`Erro ao buscar grupos: ${evolutionResponse.status}`);
     }
 
     const groupsData = await evolutionResponse.json();
+    
+    // Processar dados dos grupos para incluir informações corretas
+    const processedGroups = groupsData.map((group: any) => ({
+      ...group,
+      // O tamanho real vem do array de participantes
+      size: group.participants?.length || group.size || 0,
+      // Verificar se o grupo está aberto baseado nas configurações
+      isOpen: !group.restrict && !group.announce,
+    }));
+
+    console.log(`✅ ${processedGroups.length} grupos processados com dados completos`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        groups: groupsData,
+        groups: processedGroups,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
