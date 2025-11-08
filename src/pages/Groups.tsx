@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check } from "lucide-react";
+import { AtSign, Check, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ interface Group {
 export default function Groups() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [description, setDescription] = useState("");
@@ -91,6 +92,10 @@ export default function Groups() {
       setLoading(false);
     }
   };
+
+  const filteredGroups = groups.filter(group =>
+    group.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const insertMention = (mention: string) => {
     setMessage(prev => prev + mention);
@@ -235,10 +240,21 @@ export default function Groups() {
         <div>
           <h1 className="text-4xl font-bold">Gestão de Grupos</h1>
           <p className="text-muted-foreground mt-2">
-            Gerencie todos os seus grupos do WhatsApp em um só lugar
+            Gerencie todos os seus grupos do WhatsApp em um só lugar - Total de {groups.length} grupos
           </p>
         </div>
         <CreateMultipleGroups />
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Buscar grupos por nome..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <Card className="shadow-card">
@@ -491,11 +507,13 @@ export default function Groups() {
 
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Seus Grupos ({groups.length})</CardTitle>
+          <CardTitle>Seus Grupos ({filteredGroups.length}/{groups.length})</CardTitle>
           <CardDescription>
             {groups.length === 0 
               ? "Nenhum grupo importado ainda. Vá para a página WhatsApp e clique em 'Importar Grupos'"
-              : "Lista completa de grupos importados"
+              : searchQuery 
+                ? `${filteredGroups.length} grupos encontrados`
+                : "Lista completa de grupos importados"
             }
           </CardDescription>
         </CardHeader>
@@ -503,27 +521,27 @@ export default function Groups() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={selectedGroups.length === groups.length}
-                    onCheckedChange={toggleAll}
-                  />
-                </TableHead>
+                 <TableHead className="w-12">
+                   <Checkbox
+                     checked={selectedGroups.length === filteredGroups.length && filteredGroups.length > 0}
+                     onCheckedChange={toggleAll}
+                   />
+                 </TableHead>
                 <TableHead>Nome do Grupo</TableHead>
                 <TableHead>Membros</TableHead>
                 <TableHead>Limite</TableHead>
                 <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhum grupo encontrado
-                  </TableCell>
-                </TableRow>
-              ) : (
-                groups.map((group) => (
+            </TableRow>
+          </TableHeader>
+           <TableBody>
+             {filteredGroups.length === 0 ? (
+                 <TableRow>
+                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                     {searchQuery ? "Nenhum grupo encontrado com esse nome" : "Nenhum grupo importado ainda"}
+                   </TableCell>
+                 </TableRow>
+               ) : (
+                 filteredGroups.map((group) => (
                   <TableRow key={group.id}>
                     <TableCell>
                       <Checkbox
