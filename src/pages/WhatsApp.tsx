@@ -20,6 +20,7 @@ export default function WhatsApp() {
   const [groupsFetchAttempts, setGroupsFetchAttempts] = useState(0);
   const [lastApiStatus, setLastApiStatus] = useState<any>(null);
   const [showDebugMode, setShowDebugMode] = useState(false);
+  const [importedGroupsList, setImportedGroupsList] = useState<string[]>([]);
   const { toast } = useToast();
 
   // Load existing instance from database on mount
@@ -134,11 +135,21 @@ export default function WhatsApp() {
       console.log('Status da Evolution API:', data);
       setLastApiStatus(data);
 
+      // Verificar status atual
+      const currentStatus = data.instance?.state || data.rawData?.instance?.state;
+      console.log('Status atual da instância:', currentStatus);
+      
+      // Se está connecting, continuar verificando
+      if (currentStatus === 'connecting') {
+        console.log('Instância ainda conectando, aguardando...');
+        return;
+      }
+      
       // Aceitar diferentes variações de status conectado
       const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
-      const currentStatus = data.instance?.state || data.rawData?.instance?.state;
       
       if (data.success && currentStatus && connectedStatuses.includes(currentStatus)) {
+        console.log('✅ Instância conectada! Salvando no banco...');
         setConnected(true);
         setConnecting(false);
         setQrCode(null);
@@ -148,14 +159,22 @@ export default function WhatsApp() {
         
         if (instanceRecordId) {
           setInstanceId(instanceRecordId);
+          console.log('✅ Instância salva no banco com ID:', instanceRecordId);
           
           toast({
             title: "WhatsApp conectado!",
-            description: "Verificando importação de grupos...",
+            description: "Buscando seus grupos...",
           });
           
           // Import groups with verification and retry logic
           await importGroupsWithRetry();
+        } else {
+          console.error('❌ Falha ao salvar instância no banco');
+          toast({
+            variant: "destructive",
+            title: "Erro ao salvar conexão",
+            description: "A conexão foi estabelecida mas não foi possível salvar no banco de dados",
+          });
         }
       }
     } catch (error: any) {
@@ -254,33 +273,41 @@ export default function WhatsApp() {
     if (!instanceName) return null;
     
     try {
-      console.log('Iniciando importação de grupos para:', instanceName);
+      console.log('🔄 Iniciando importação de grupos para:', instanceName);
+      setImportedGroupsList([]);
       
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
         body: { instanceName }
       });
 
       if (error) {
-        console.error('Erro da edge function:', error);
+        console.error('❌ Erro da edge function:', error);
         throw error;
       }
 
-      console.log('Resposta da importação:', data);
+      console.log('📦 Resposta da importação:', data);
       setLastApiStatus(data);
 
       if (data.success) {
+        // Extrair nomes dos grupos se disponível
+        if (data.groups && Array.isArray(data.groups)) {
+          const groupNames = data.groups.slice(0, 10).map((g: any) => g.subject || 'Sem nome');
+          setImportedGroupsList(groupNames);
+          console.log('📋 Primeiros grupos:', groupNames);
+        }
+        
         if (data.saved > 0) {
           toast({
             title: "Grupos importados!",
             description: `${data.saved} grupos foram importados com sucesso`,
           });
         }
-        return { saved: data.saved };
+        return { saved: data.saved, groups: data.groups };
       } else {
         throw new Error(data.error || 'Erro ao importar grupos');
       }
     } catch (error: any) {
-      console.error('Erro ao importar grupos:', error);
+      console.error('❌ Erro ao importar grupos:', error);
       setLastApiStatus({ error: error.message });
       toast({
         variant: "destructive",
@@ -438,8 +465,24 @@ export default function WhatsApp() {
                 </p>
                 
                 {importingGroups && groupsFetchAttempts > 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Tentativa {groupsFetchAttempts} de 3...
+                  <div className="bg-accent/50 border border-border rounded-md p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Importando grupos... (Tentativa {groupsFetchAttempts} de 3)
+                    </div>
+                    {importedGroupsList.length > 0 && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground mb-1">Grupos encontrados:</p>
+                        {importedGroupsList.map((groupName, idx) => (
+                          <div key={idx} className="text-xs px-2 py-1 bg-background rounded text-foreground">
+                            • {groupName}
+                          </div>
+                        ))}
+                        {importedGroupsList.length >= 10 && (
+                          <p className="text-xs text-muted-foreground italic">e mais...</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
