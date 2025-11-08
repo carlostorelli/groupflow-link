@@ -17,6 +17,9 @@ export default function WhatsApp() {
   const [importingGroups, setImportingGroups] = useState(false);
   const [instanceId, setInstanceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [groupsFetchAttempts, setGroupsFetchAttempts] = useState(0);
+  const [lastApiStatus, setLastApiStatus] = useState<any>(null);
+  const [showDebugMode, setShowDebugMode] = useState(false);
   const { toast } = useToast();
 
   // Load existing instance from database on mount
@@ -129,6 +132,7 @@ export default function WhatsApp() {
       if (error) throw error;
 
       console.log('Status da Evolution API:', data);
+      setLastApiStatus(data);
 
       // Aceitar diferentes variações de status conectado
       const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
@@ -139,28 +143,33 @@ export default function WhatsApp() {
         setConnecting(false);
         setQrCode(null);
         
-        // Update instance status in database
-        await updateInstanceStatus('connected');
+        // Update instance status in database and ensure it's recognized
+        const instanceRecordId = await updateInstanceStatus('connected');
         
-        toast({
-          title: "WhatsApp conectado!",
-          description: "Verificando importação de grupos...",
-        });
-        
-        // Import groups with verification
-        await importGroupsWithVerification();
+        if (instanceRecordId) {
+          setInstanceId(instanceRecordId);
+          
+          toast({
+            title: "WhatsApp conectado!",
+            description: "Verificando importação de grupos...",
+          });
+          
+          // Import groups with verification and retry logic
+          await importGroupsWithRetry();
+        }
       }
     } catch (error: any) {
       console.error('Erro ao verificar status:', error);
+      setLastApiStatus({ error: error.message });
     } finally {
       setCheckingStatus(false);
     }
   };
 
-  const updateInstanceStatus = async (status: 'connected' | 'pending' | 'disconnected') => {
+  const updateInstanceStatus = async (status: 'connected' | 'pending' | 'disconnected'): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return null;
 
       const { data: instance, error } = await supabase
         .from('instances')
@@ -179,76 +188,146 @@ export default function WhatsApp() {
       
       if (instance) {
         setInstanceId(instance.id);
+        console.log('Instance recognized and saved:', instance.id);
+        return instance.id;
       }
+      
+      return null;
     } catch (error: any) {
       console.error('Erro ao atualizar status da instância:', error);
+      return null;
     }
   };
 
-  const importGroupsWithVerification = async () => {
+  const importGroupsWithRetry = async (maxAttempts = 3) => {
     setImportingGroups(true);
+    setGroupsFetchAttempts(0);
     
-    try {
-      // Attempt to import groups
-      await importGroups();
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      setGroupsFetchAttempts(attempt);
+      console.log(`Tentativa ${attempt} de ${maxAttempts} de importar grupos`);
       
-      // Wait and verify if groups were imported
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Check if groups exist in database
-      const { data: groups, error } = await supabase
-        .from('groups')
-        .select('id', { count: 'exact' })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      if (!groups || groups.length === 0) {
-        // Fallback: retry import after 3 seconds
-        toast({
-          title: "Tentando novamente...",
-          description: "Aguardando confirmação dos grupos",
-        });
+      try {
+        const result = await importGroups();
         
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        await importGroups();
+        // If successful and has groups, we're done
+        if (result && result.saved > 0) {
+          console.log(`Sucesso! ${result.saved} grupos importados`);
+          setImportingGroups(false);
+          setShowDebugMode(false);
+          return;
+        }
+        
+        // If no groups found and we have more attempts
+        if (attempt < maxAttempts) {
+          console.log('Nenhum grupo encontrado, aguardando 2s antes de tentar novamente...');
+          toast({
+            title: `Tentativa ${attempt} de ${maxAttempts}`,
+            description: "Nenhum grupo encontrado, tentando novamente...",
+          });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          // Last attempt failed, show debug mode
+          console.log('Todas as tentativas falharam, ativando modo debug');
+          setShowDebugMode(true);
+          toast({
+            variant: "destructive",
+            title: "Nenhum grupo encontrado",
+            description: "Use o botão 'Forçar Importação' para tentar manualmente",
+          });
+        }
+      } catch (error: any) {
+        console.error(`Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          setShowDebugMode(true);
+        }
       }
-    } catch (error: any) {
-      console.error('Erro na verificação de importação:', error);
-    } finally {
-      setImportingGroups(false);
     }
+    
+    setImportingGroups(false);
   };
 
   const importGroups = async () => {
-    if (!instanceName) return;
+    if (!instanceName) return null;
     
     try {
+      console.log('Iniciando importação de grupos para:', instanceName);
+      
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
         body: { instanceName }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro da edge function:', error);
+        throw error;
+      }
+
+      console.log('Resposta da importação:', data);
+      setLastApiStatus(data);
 
       if (data.success) {
-        toast({
-          title: "Grupos importados!",
-          description: `${data.saved} grupos foram importados com sucesso`,
-        });
+        if (data.saved > 0) {
+          toast({
+            title: "Grupos importados!",
+            description: `${data.saved} grupos foram importados com sucesso`,
+          });
+        }
+        return { saved: data.saved };
       } else {
         throw new Error(data.error || 'Erro ao importar grupos');
       }
     } catch (error: any) {
       console.error('Erro ao importar grupos:', error);
+      setLastApiStatus({ error: error.message });
       toast({
         variant: "destructive",
         title: "Erro ao importar grupos",
-        description: error.message || "Não foi possível importar os grupos. Tente novamente.",
+        description: error.message || "Não foi possível importar os grupos.",
       });
       throw error;
+    }
+  };
+
+  const forceImportGroups = async () => {
+    setShowDebugMode(false);
+    setImportingGroups(true);
+    
+    try {
+      console.log('Forçando importação manual de grupos');
+      await importGroups();
+      
+      // Verificar se realmente importou
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: groups } = await supabase
+        .from('groups')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id);
+
+      if (groups && groups.length > 0) {
+        toast({
+          title: "Importação forçada concluída!",
+          description: `${groups.length} grupos encontrados no banco de dados`,
+        });
+      } else {
+        setShowDebugMode(true);
+        toast({
+          variant: "destructive",
+          title: "Ainda sem grupos",
+          description: "Verifique os logs no console para mais detalhes",
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro na importação forçada:', error);
+      setShowDebugMode(true);
+    } finally {
+      setImportingGroups(false);
     }
   };
 
@@ -357,9 +436,43 @@ export default function WhatsApp() {
                 <p className="text-sm text-muted-foreground">
                   Sua instância está ativa e funcionando
                 </p>
+                
+                {importingGroups && groupsFetchAttempts > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Tentativa {groupsFetchAttempts} de 3...
+                  </div>
+                )}
+
+                {showDebugMode && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 space-y-2">
+                    <p className="text-sm font-medium text-destructive">Modo Debug Ativado</p>
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum grupo foi encontrado após 3 tentativas. 
+                      Último status da API está no console.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={forceImportGroups}
+                      disabled={importingGroups}
+                      className="w-full"
+                    >
+                      {importingGroups ? "Importando..." : "Forçar Importação"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => console.log('Último status da API:', lastApiStatus)}
+                      className="w-full text-xs"
+                    >
+                      Ver Status no Console
+                    </Button>
+                  </div>
+                )}
+                
                 <div className="flex gap-2">
                   <Button 
-                    onClick={importGroups}
+                    onClick={() => importGroupsWithRetry()}
                     disabled={importingGroups}
                     className="flex-1"
                   >

@@ -95,6 +95,7 @@ serve(async (req) => {
 
     if (existingInstance) {
       instanceRecordId = existingInstance.id;
+      console.log('Instância existente encontrada:', instanceRecordId);
       // Update instance status
       await supabaseAdmin
         .from('instances')
@@ -102,6 +103,7 @@ serve(async (req) => {
         .eq('id', instanceRecordId);
     } else {
       // Create instance record
+      console.log('Criando nova instância no banco de dados');
       const { data: newInstance, error: instanceError } = await supabaseAdmin
         .from('instances')
         .insert({
@@ -117,6 +119,24 @@ serve(async (req) => {
         throw new Error('Erro ao salvar instância');
       }
       instanceRecordId = newInstance.id;
+      console.log('Nova instância criada:', instanceRecordId);
+    }
+
+    // Check if we have groups to save
+    if (!groupsData || groupsData.length === 0) {
+      console.log('Nenhum grupo retornado pela Evolution API');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          groups: [],
+          saved: 0,
+          message: 'Nenhum grupo encontrado na instância'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      );
     }
 
     // Save groups to database
