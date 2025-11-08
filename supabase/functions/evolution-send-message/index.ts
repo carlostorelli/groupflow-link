@@ -42,6 +42,32 @@ serve(async (req) => {
 
     // Encode instance name for URL
     const encodedInstanceName = encodeURIComponent(instanceName);
+
+    // Verificar se a instância existe e está conectada
+    console.log('Verificando status da instância:', instanceName);
+    const statusResponse = await fetch(
+      `${apiUrl}/instance/connectionState/${encodedInstanceName}`,
+      {
+        headers: {
+          'apikey': apiKey,
+        },
+      }
+    );
+
+    if (!statusResponse.ok) {
+      if (statusResponse.status === 404) {
+        throw new Error(`Instância "${instanceName}" não encontrada. Verifique se ela existe na Evolution API.`);
+      }
+      throw new Error(`Erro ao verificar status da instância: ${statusResponse.status}`);
+    }
+
+    const statusData = await statusResponse.json();
+    console.log('Status da instância:', statusData);
+
+    if (statusData.instance?.state !== 'open') {
+      throw new Error(`Instância "${instanceName}" não está conectada. Status: ${statusData.instance?.state || 'desconhecido'}`);
+    }
+
     console.log('Enviando para Evolution API:', `${apiUrl}/message/sendText/${encodedInstanceName}`);
 
     // Preparar payload
