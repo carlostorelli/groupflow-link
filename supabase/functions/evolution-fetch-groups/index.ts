@@ -28,9 +28,13 @@ serve(async (req) => {
     // Buscar configurações da Evolution API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     
-    // Create Supabase client with user's auth
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    // Create admin client for database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+    
+    // Create client with user's auth for getting user info
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
       },
@@ -74,13 +78,13 @@ serve(async (req) => {
     console.log(`Encontrados ${groupsData.length} grupos`);
 
     // Get user from auth header
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
     if (userError || !user) {
       throw new Error('Usuário não autenticado');
     }
 
     // Get or create instance record
-    const { data: existingInstance } = await supabase
+    const { data: existingInstance } = await supabaseAdmin
       .from('instances')
       .select('id')
       .eq('instance_id', instanceName)
@@ -92,13 +96,13 @@ serve(async (req) => {
     if (existingInstance) {
       instanceRecordId = existingInstance.id;
       // Update instance status
-      await supabase
+      await supabaseAdmin
         .from('instances')
         .update({ status: 'connected', updated_at: new Date().toISOString() })
         .eq('id', instanceRecordId);
     } else {
       // Create instance record
-      const { data: newInstance, error: instanceError } = await supabase
+      const { data: newInstance, error: instanceError } = await supabaseAdmin
         .from('instances')
         .insert({
           instance_id: instanceName,
@@ -129,13 +133,13 @@ serve(async (req) => {
     console.log(`Salvando ${groupsToInsert.length} grupos no banco de dados`);
 
     // Delete existing groups for this instance to avoid duplicates
-    await supabase
+    await supabaseAdmin
       .from('groups')
       .delete()
       .eq('instance_id', instanceRecordId);
 
     // Insert new groups
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseAdmin
       .from('groups')
       .insert(groupsToInsert);
 
