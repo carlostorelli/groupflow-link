@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, QrCode, RefreshCw } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function WhatsApp() {
@@ -14,6 +14,7 @@ export default function WhatsApp() {
   const [connected, setConnected] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [importingGroups, setImportingGroups] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,13 +54,47 @@ export default function WhatsApp() {
         setQrCode(null);
         toast({
           title: "WhatsApp conectado!",
-          description: "Sua instância foi conectada com sucesso",
+          description: "Importando seus grupos...",
         });
+        
+        // Import groups automatically
+        await importGroups();
       }
     } catch (error: any) {
       console.error('Erro ao verificar status:', error);
     } finally {
       setCheckingStatus(false);
+    }
+  };
+
+  const importGroups = async () => {
+    if (!instanceName) return;
+    
+    setImportingGroups(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
+        body: { instanceName }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Grupos importados!",
+          description: `${data.saved} grupos foram importados com sucesso`,
+        });
+      } else {
+        throw new Error(data.error || 'Erro ao importar grupos');
+      }
+    } catch (error: any) {
+      console.error('Erro ao importar grupos:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao importar grupos",
+        description: error.message || "Não foi possível importar os grupos. Tente novamente.",
+      });
+    } finally {
+      setImportingGroups(false);
     }
   };
 
@@ -145,16 +180,35 @@ export default function WhatsApp() {
                 <p className="text-sm text-muted-foreground">
                   Sua instância está ativa e funcionando
                 </p>
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    setConnected(false);
-                    setInstanceName("");
-                  }}
-                  className="w-full"
-                >
-                  Desconectar
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={importGroups}
+                    disabled={importingGroups}
+                    className="flex-1"
+                  >
+                    {importingGroups ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Importar Grupos
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setConnected(false);
+                      setInstanceName("");
+                    }}
+                    className="flex-1"
+                  >
+                    Desconectar
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
