@@ -41,7 +41,13 @@ export default function WhatsApp() {
 
       if (error) throw error;
 
-      if (data.success && data.status === 'open') {
+      console.log('Status da Evolution API:', data);
+
+      // Aceitar diferentes variações de status conectado
+      const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
+      const currentStatus = data.status || data.rawData?.state;
+      
+      if (data.success && currentStatus && connectedStatuses.includes(currentStatus)) {
         setConnected(true);
         setConnecting(false);
         setQrCode(null);
@@ -139,15 +145,37 @@ export default function WhatsApp() {
                 <p className="text-sm text-muted-foreground">
                   Sua instância está ativa e funcionando
                 </p>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setConnected(false);
+                    setInstanceName("");
+                  }}
+                  className="w-full"
+                >
+                  Desconectar
+                </Button>
               </div>
             ) : (
-              <Button 
-                onClick={handleConnect} 
-                disabled={connecting}
-                className="w-full"
-              >
-                {connecting ? "Conectando..." : "Gerar QR Code"}
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={handleConnect} 
+                  disabled={connecting}
+                  className="w-full"
+                >
+                  {connecting ? "Conectando..." : "Gerar QR Code"}
+                </Button>
+                {connecting && (
+                  <Button 
+                    variant="outline"
+                    onClick={checkStatus}
+                    disabled={checkingStatus}
+                    className="w-full"
+                  >
+                    {checkingStatus ? "Verificando..." : "Verificar Status"}
+                  </Button>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

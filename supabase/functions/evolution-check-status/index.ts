@@ -12,6 +12,7 @@ serve(async (req) => {
 
   try {
     const { instanceName } = await req.json();
+    console.log('Verificando status da instância:', instanceName);
     
     if (!instanceName) {
       throw new Error('Nome da instância é obrigatório');
@@ -39,6 +40,8 @@ serve(async (req) => {
       throw new Error('Configurações da Evolution API não encontradas');
     }
 
+    console.log('Consultando Evolution API:', `${apiUrl}/instance/connectionState/${instanceName}`);
+
     // Verificar status da instância
     const evolutionResponse = await fetch(
       `${apiUrl}/instance/connectionState/${instanceName}`,
@@ -50,16 +53,20 @@ serve(async (req) => {
     );
 
     if (!evolutionResponse.ok) {
+      const errorText = await evolutionResponse.text();
+      console.error('Erro na resposta da Evolution API:', evolutionResponse.status, errorText);
       throw new Error('Erro ao verificar status da instância');
     }
 
     const statusData = await evolutionResponse.json();
+    console.log('Status retornado pela Evolution API:', JSON.stringify(statusData));
 
     return new Response(
       JSON.stringify({
         success: true,
-        status: statusData.state,
+        status: statusData.state || statusData.status,
         instance: statusData.instance,
+        rawData: statusData,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
