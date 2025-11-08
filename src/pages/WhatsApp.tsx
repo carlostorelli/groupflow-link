@@ -19,6 +19,8 @@ export default function WhatsApp() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importedGroups, setImportedGroups] = useState<string[]>([]);
+  const [autoSync, setAutoSync] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
   const { toast } = useToast();
 
   // Carregar estado da conexão do banco ao montar
@@ -82,6 +84,31 @@ export default function WhatsApp() {
       if (interval) clearInterval(interval);
     };
   }, [connected, instanceName, connecting]);
+
+  // Auto-sync de grupos a cada 5 minutos
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (autoSync && connected && instanceName && !importing) {
+      console.log('🔄 Auto-sync ativado - sincronizando a cada 5 minutos');
+      
+      // Sync imediato ao ativar
+      handleImportGroups(true);
+      
+      // Sync periódico
+      interval = setInterval(() => {
+        console.log('⏰ Executando auto-sync agendado...');
+        handleImportGroups(true);
+      }, 5 * 60 * 1000); // 5 minutos
+    }
+    
+    return () => {
+      if (interval) {
+        console.log('⏹️ Auto-sync desativado');
+        clearInterval(interval);
+      }
+    };
+  }, [autoSync, connected, instanceName, importing]);
 
   const updateInstanceStatus = async (status: 'pending' | 'connected' | 'disconnected') => {
     try {
@@ -257,15 +284,19 @@ export default function WhatsApp() {
     }
   };
 
-  const handleImportGroups = async () => {
-    if (!instanceName) return;
+  const handleImportGroups = async (isSilent = false) => {
+    if (!instanceName || !instanceId) return;
 
     setImporting(true);
     setImportProgress(0);
-    setImportedGroups([]);
+    if (!isSilent) {
+      setImportedGroups([]);
+    }
 
     try {
-      console.log('🔄 Iniciando importação de grupos...');
+      if (!isSilent) {
+        console.log('🔄 Iniciando importação de grupos...');
+      }
       
       // Buscar grupos da Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
@@ -288,10 +319,20 @@ export default function WhatsApp() {
       // Importar grupos progressivamente
       const totalGroups = groups.length;
       const importedNumbers: string[] = [];
+      let newGroups = 0;
+      let updatedGroups = 0;
 
       for (let i = 0; i < groups.length; i++) {
         const group = groups[i];
         
+        // Verificar se já existe
+        const { data: existingGroup } = await supabase
+          .from('groups')
+          .select('id')
+          .eq('wa_group_id', group.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
         // Salvar no banco
         const { error: insertError } = await supabase
           .from('groups')
@@ -311,28 +352,46 @@ export default function WhatsApp() {
           console.error('Erro ao salvar grupo:', insertError);
         } else {
           importedNumbers.push(group.id);
-          setImportedGroups(prev => [...prev, `${group.subject || 'Sem nome'} (${group.id})`]);
+          if (existingGroup) {
+            updatedGroups++;
+          } else {
+            newGroups++;
+          }
+          
+          if (!isSilent) {
+            setImportedGroups(prev => [...prev, `${group.subject || 'Sem nome'} (${group.id})`]);
+          }
         }
 
         // Atualizar progresso
         const progress = Math.round(((i + 1) / totalGroups) * 100);
         setImportProgress(progress);
         
-        console.log(`📥 [${i + 1}/${totalGroups}] ${group.subject || 'Sem nome'} - ${group.id}`);
+        if (!isSilent) {
+          console.log(`📥 [${i + 1}/${totalGroups}] ${group.subject || 'Sem nome'} - ${group.id}`);
+        }
       }
 
-      toast({
-        title: "Grupos importados!",
-        description: `${importedNumbers.length} grupos foram importados com sucesso`,
-      });
+      setLastSync(new Date());
+
+      if (!isSilent) {
+        toast({
+          title: "Grupos importados!",
+          description: `${newGroups} novos, ${updatedGroups} atualizados`,
+        });
+      } else {
+        console.log(`✅ Auto-sync: ${newGroups} novos, ${updatedGroups} atualizados - ${new Date().toLocaleTimeString()}`);
+      }
 
     } catch (error: any) {
       console.error('❌ Erro ao importar grupos:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao importar grupos",
-        description: error.message || "Tente novamente",
-      });
+      if (!isSilent) {
+        toast({
+          variant: "destructive",
+          title: "Erro ao importar grupos",
+          description: error.message || "Tente novamente",
+        });
+      }
     } finally {
       setImporting(false);
     }
@@ -379,38 +438,64 @@ export default function WhatsApp() {
                   Sua instância está ativa e funcionando
                 </p>
                 
-                {importing ? (
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Importando grupos...</span>
-                        <span className="font-medium">{importProgress}%</span>
+                <div className="space-y-3">
+                  {importing ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Importando grupos...</span>
+                          <span className="font-medium">{importProgress}%</span>
+                        </div>
+                        <Progress value={importProgress} className="h-2" />
                       </div>
-                      <Progress value={importProgress} className="h-2" />
-                    </div>
-                    
-                    {importedGroups.length > 0 && (
-                      <div className="space-y-2 max-h-32 overflow-y-auto bg-muted/30 rounded-lg p-3">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Grupos importados ({importedGroups.length}):
-                        </p>
-                        {importedGroups.map((group, idx) => (
-                          <p key={idx} className="text-xs text-muted-foreground truncate">
-                            ✓ {group}
+                      
+                      {importedGroups.length > 0 && (
+                        <div className="space-y-2 max-h-32 overflow-y-auto bg-muted/30 rounded-lg p-3">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Grupos importados ({importedGroups.length}):
                           </p>
-                        ))}
+                          {importedGroups.map((group, idx) => (
+                            <p key={idx} className="text-xs text-muted-foreground truncate">
+                              ✓ {group}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => handleImportGroups(false)}
+                        className="w-full"
+                        disabled={importing}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Importar Grupos
+                      </Button>
+                      
+                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Auto-sync</p>
+                          <p className="text-xs text-muted-foreground">
+                            {autoSync ? 'Sincroniza a cada 5 min' : 'Desativado'}
+                          </p>
+                          {lastSync && (
+                            <p className="text-xs text-muted-foreground">
+                              Último sync: {lastSync.toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant={autoSync ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setAutoSync(!autoSync)}
+                        >
+                          {autoSync ? "Ativado" : "Ativar"}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <Button
-                    onClick={handleImportGroups}
-                    className="w-full"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Importar Grupos
-                  </Button>
-                )}
+                    </>
+                  )}
+                </div>
                 
                 <div className="flex gap-2">
                   <Button 
