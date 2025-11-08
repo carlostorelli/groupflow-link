@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, QrCode, RefreshCw } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 
 export default function WhatsApp() {
   const [instanceName, setInstanceName] = useState("");
@@ -15,6 +16,9 @@ export default function WhatsApp() {
   const [connected, setConnected] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importedGroups, setImportedGroups] = useState<string[]>([]);
   const { toast } = useToast();
 
   // Carregar estado da conexão do banco ao montar
@@ -253,6 +257,87 @@ export default function WhatsApp() {
     }
   };
 
+  const handleImportGroups = async () => {
+    if (!instanceName) return;
+
+    setImporting(true);
+    setImportProgress(0);
+    setImportedGroups([]);
+
+    try {
+      console.log('🔄 Iniciando importação de grupos...');
+      
+      // Buscar grupos da Evolution API
+      const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
+        body: { instanceName }
+      });
+
+      if (error) throw error;
+
+      if (!data.success || !data.groups) {
+        throw new Error('Erro ao buscar grupos');
+      }
+
+      const groups = data.groups;
+      console.log(`✅ ${groups.length} grupos encontrados`);
+
+      // Buscar user_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Importar grupos progressivamente
+      const totalGroups = groups.length;
+      const importedNumbers: string[] = [];
+
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        
+        // Salvar no banco
+        const { error: insertError } = await supabase
+          .from('groups')
+          .upsert({
+            user_id: user.id,
+            instance_id: instanceId,
+            wa_group_id: group.id,
+            name: group.subject || 'Sem nome',
+            description: group.desc || null,
+            members_count: group.size || 0,
+            status: 'open',
+          }, {
+            onConflict: 'wa_group_id,user_id'
+          });
+
+        if (insertError) {
+          console.error('Erro ao salvar grupo:', insertError);
+        } else {
+          importedNumbers.push(group.id);
+          setImportedGroups(prev => [...prev, `${group.subject || 'Sem nome'} (${group.id})`]);
+        }
+
+        // Atualizar progresso
+        const progress = Math.round(((i + 1) / totalGroups) * 100);
+        setImportProgress(progress);
+        
+        console.log(`📥 [${i + 1}/${totalGroups}] ${group.subject || 'Sem nome'} - ${group.id}`);
+      }
+
+      toast({
+        title: "Grupos importados!",
+        description: `${importedNumbers.length} grupos foram importados com sucesso`,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Erro ao importar grupos:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao importar grupos",
+        description: error.message || "Tente novamente",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -293,6 +378,40 @@ export default function WhatsApp() {
                 <p className="text-sm text-muted-foreground">
                   Sua instância está ativa e funcionando
                 </p>
+                
+                {importing ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Importando grupos...</span>
+                        <span className="font-medium">{importProgress}%</span>
+                      </div>
+                      <Progress value={importProgress} className="h-2" />
+                    </div>
+                    
+                    {importedGroups.length > 0 && (
+                      <div className="space-y-2 max-h-32 overflow-y-auto bg-muted/30 rounded-lg p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Grupos importados ({importedGroups.length}):
+                        </p>
+                        {importedGroups.map((group, idx) => (
+                          <p key={idx} className="text-xs text-muted-foreground truncate">
+                            ✓ {group}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleImportGroups}
+                    className="w-full"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Importar Grupos
+                  </Button>
+                )}
+                
                 <div className="flex gap-2">
                   <Button 
                     variant="outline"
@@ -300,7 +419,7 @@ export default function WhatsApp() {
                       setConnecting(true);
                       await handleConnect();
                     }}
-                    disabled={connecting}
+                    disabled={connecting || importing}
                     className="flex-1"
                   >
                     Reconectar
@@ -315,6 +434,7 @@ export default function WhatsApp() {
                       setInstanceName("");
                       setInstanceId(null);
                     }}
+                    disabled={importing}
                     className="flex-1"
                   >
                     Desconectar
