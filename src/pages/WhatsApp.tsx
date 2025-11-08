@@ -45,7 +45,7 @@ export default function WhatsApp() {
 
       // Aceitar diferentes variações de status conectado
       const connectedStatuses = ['open', 'connected', 'CONNECTED', 'OPEN'];
-      const currentStatus = data.status || data.rawData?.state;
+      const currentStatus = data.instance?.state || data.rawData?.instance?.state;
       
       if (data.success && currentStatus && connectedStatuses.includes(currentStatus)) {
         setConnected(true);
