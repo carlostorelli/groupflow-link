@@ -196,6 +196,58 @@ export default function Groups() {
 
     const instanceName = instances[0].instance_id;
 
+    // Verificar se a instância realmente está conectada na Evolution API
+    console.log('🔍 Verificando status da instância antes de enviar...');
+    try {
+      const { data: statusData, error: statusError } = await supabase.functions.invoke('evolution-check-status', {
+        body: { instanceName }
+      });
+
+      if (statusError || !statusData?.state || statusData.state !== 'open') {
+        const errorMsg = statusData?.state 
+          ? `Instância desconectada (Status: ${statusData.state})` 
+          : 'Instância não encontrada na Evolution API';
+        
+        toast({
+          variant: "destructive",
+          title: "WhatsApp desconectado",
+          description: "Sua instância do WhatsApp está desconectada. Reconecte na página do WhatsApp.",
+        });
+
+        if (historyRecord) {
+          await supabase
+            .from('action_history')
+            .update({
+              status: 'failed',
+              error_message: errorMsg,
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', historyRecord.id);
+        }
+        return;
+      }
+      console.log('✅ Instância verificada e conectada');
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao verificar conexão",
+        description: "Não foi possível verificar o status da conexão do WhatsApp",
+      });
+      
+      if (historyRecord) {
+        await supabase
+          .from('action_history')
+          .update({
+            status: 'failed',
+            error_message: 'Erro ao verificar status da conexão',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', historyRecord.id);
+      }
+      return;
+    }
+
     // Buscar dados dos grupos selecionados
     const { data: selectedGroupsData } = await supabase
       .from('groups')
