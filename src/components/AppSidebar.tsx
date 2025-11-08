@@ -7,6 +7,7 @@ import {
   Calendar,
   UserPlus,
   Sparkles,
+  History,
   LogOut,
   Moon,
   Sun,
@@ -41,6 +42,7 @@ const menuItems = [
   { title: "Agendamentos", url: "/jobs", icon: Calendar },
   { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
   { title: "Ferramentas de IA", url: "/ai-tools", icon: Sparkles },
+  { title: "Histórico", url: "/history", icon: History },
   { title: "Admin", url: "/admin", icon: Shield },
 ];
 

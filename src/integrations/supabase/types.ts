@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_history: {
+        Row: {
+          action_type: string
+          completed_at: string | null
+          created_at: string
+          description: string
+          error_count: number | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          status: string
+          success_count: number | null
+          target_count: number | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          completed_at?: string | null
+          created_at?: string
+          description: string
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          success_count?: number | null
+          target_count?: number | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          success_count?: number | null
+          target_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_templates: {
         Row: {
           content: string
