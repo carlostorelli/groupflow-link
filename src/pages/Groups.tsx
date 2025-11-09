@@ -50,6 +50,7 @@ interface Group {
   member_limit: number;
   status: string;
   wa_group_id: string;
+  is_admin: boolean;
 }
 
 export default function Groups() {
@@ -363,6 +364,9 @@ export default function Groups() {
           groupStatus = 'closed';
         }
         
+        // Verificar se o usuário é admin (vem do campo isAdmin da Evolution API)
+        const isUserAdmin = group.isAdmin === true;
+        
         // Salvar no banco com dados corretos
         let insertError;
         
@@ -376,6 +380,7 @@ export default function Groups() {
               description: group.desc || null,
               members_count: group.size || 0,
               status: groupStatus,
+              is_admin: isUserAdmin,
               updated_at: new Date().toISOString(),
             })
             .eq('id', existingGroup.id);
@@ -393,6 +398,7 @@ export default function Groups() {
               members_count: group.size || 0,
               member_limit: 1024,
               status: groupStatus,
+              is_admin: isUserAdmin,
             });
           insertError = error;
         }
@@ -478,6 +484,19 @@ export default function Groups() {
         variant: "destructive",
         title: "Mensagem vazia",
         description: "Digite uma mensagem antes de enviar",
+      });
+      return;
+    }
+
+    // Verificar se existem grupos fechados na seleção
+    const selectedGroupsToCheck = groups.filter((g) => selectedGroups.includes(g.id));
+    const closedGroups = selectedGroupsToCheck.filter((g) => g.status === 'closed');
+    
+    if (closedGroups.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Grupos fechados selecionados",
+        description: `${closedGroups.length} grupo(s) está(ão) fechado(s). Mensagens só podem ser enviadas em grupos abertos.`,
       });
       return;
     }
@@ -722,12 +741,24 @@ export default function Groups() {
       return;
     }
 
+    // Verificar se o usuário é admin em todos os grupos selecionados (exceto para enviar mensagem)
+    const selectedGroupsData = groups.filter((g) => selectedGroups.includes(g.id));
+    const nonAdminGroups = selectedGroupsData.filter((g) => !g.is_admin);
+    
+    if (nonAdminGroups.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Permissão negada",
+        description: `Você não é admin em ${nonAdminGroups.length} grupo(s). Apenas admins podem alterar configurações dos grupos.`,
+      });
+      return;
+    }
+
     setLoading(true);
     let successCount = 0;
     let errorCount = 0;
 
     try {
-      const selectedGroupsData = groups.filter((g) => selectedGroups.includes(g.id));
 
       for (const group of selectedGroupsData) {
         try {

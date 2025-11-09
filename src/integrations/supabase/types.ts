@@ -98,6 +98,7 @@ export type Database = {
           description: string | null
           id: string
           instance_id: string
+          is_admin: boolean
           member_limit: number
           members_count: number
           name: string
@@ -111,6 +112,7 @@ export type Database = {
           description?: string | null
           id?: string
           instance_id: string
+          is_admin?: boolean
           member_limit?: number
           members_count?: number
           name: string
@@ -124,6 +126,7 @@ export type Database = {
           description?: string | null
           id?: string
           instance_id?: string
+          is_admin?: boolean
           member_limit?: number
           members_count?: number
           name?: string

@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
         const groupIds = job.payload.groups || [];
         const { data: groupsData } = await supabase
           .from('groups')
-          .select('wa_group_id, name')
+          .select('wa_group_id, name, status, is_admin')
           .in('id', groupIds)
           .eq('user_id', job.user_id);
 
@@ -95,6 +95,17 @@ Deno.serve(async (req) => {
         
         for (const group of groupsData) {
           try {
+            // Para ações de configuração, verificar se o usuário é admin
+            const isConfigAction = ['update_description', 'close_groups', 'open_groups', 'change_group_name', 'change_group_photo'].includes(job.action_type);
+            
+            if (isConfigAction && !group.is_admin) {
+              throw new Error('Você não é admin deste grupo');
+            }
+            
+            // Para envio de mensagem, verificar se o grupo está aberto
+            if (job.action_type === 'send_message' && group.status === 'closed') {
+              throw new Error('Mensagens não podem ser enviadas em grupos fechados');
+            }
             if (job.action_type === 'send_message') {
               // Processar menções
               let mentions: string[] | undefined = undefined;

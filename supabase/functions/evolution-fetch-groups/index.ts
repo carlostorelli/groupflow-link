@@ -60,25 +60,26 @@ serve(async (req) => {
 
     const groupsData = await evolutionResponse.json();
     
-    // Processar dados dos grupos - filtrar apenas grupos onde somos admin
-    const processedGroups = groupsData
-      .filter((group: any) => {
-        // Verificar se temos permissões de admin no grupo
-        const participants = group.participants || [];
-        const ourParticipant = participants.find((p: any) => 
-          p.admin === 'admin' || p.admin === 'superadmin'
-        );
-        return ourParticipant !== undefined;
-      })
-      .map((group: any) => ({
+    // Processar dados dos grupos incluindo informação de admin
+    const processedGroups = groupsData.map((group: any) => {
+      // Verificar se o usuário é admin no grupo
+      const participants = group.participants || [];
+      const ourParticipant = participants.find((p: any) => 
+        p.admin === 'admin' || p.admin === 'superadmin'
+      );
+      
+      return {
         ...group,
         // O tamanho real vem do array de participantes
         size: group.participants?.length || group.size || 0,
         // Verificar se o grupo está aberto baseado nas configurações
         isOpen: !group.restrict && !group.announce,
-      }));
+        // Verificar se o usuário é admin
+        isAdmin: ourParticipant !== undefined,
+      };
+    });
 
-    console.log(`✅ ${processedGroups.length} grupos processados (apenas grupos admin)`);
+    console.log(`✅ ${processedGroups.length} grupos processados (incluindo info de admin)`);
 
     return new Response(
       JSON.stringify({
