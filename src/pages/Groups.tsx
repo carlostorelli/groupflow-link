@@ -358,10 +358,24 @@ export default function Groups() {
         body: { instanceName }
       });
 
-      if (statusError || !statusData?.state || statusData.state !== 'open') {
-        const errorMsg = statusData?.state 
-          ? `Instância desconectada (Status: ${statusData.state})` 
+      console.log('📊 Status recebido:', statusData);
+
+      // Verificar múltiplas possibilidades de localização do status
+      const connectedStatuses = ['open', 'connected'];
+      const currentStatus = statusData?.status || 
+                           statusData?.rawData?.instance?.state || 
+                           statusData?.instance?.state || 
+                           statusData?.rawData?.state ||
+                           statusData?.state;
+
+      console.log('🔍 Status extraído:', currentStatus);
+
+      if (statusError || !currentStatus || !connectedStatuses.includes(currentStatus)) {
+        const errorMsg = currentStatus 
+          ? `Instância desconectada (Status: ${currentStatus})` 
           : 'Instância não encontrada na Evolution API';
+        
+        console.error('❌ Status inválido:', errorMsg);
         
         toast({
           variant: "destructive",
@@ -381,7 +395,7 @@ export default function Groups() {
         }
         return;
       }
-      console.log('✅ Instância verificada e conectada');
+      console.log('✅ Instância verificada e conectada:', currentStatus);
     } catch (error) {
       console.error('Erro ao verificar status:', error);
       toast({
