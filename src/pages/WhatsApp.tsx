@@ -308,6 +308,12 @@ export default function WhatsApp() {
   const handleImportGroups = async (isSilent = false) => {
     if (!instanceName || !instanceId) return;
 
+    // Evitar múltiplas importações simultâneas
+    if (importing) {
+      console.log('⚠️ Importação já em andamento, aguardando...');
+      return;
+    }
+
     setImporting(true);
     setImportProgress(0);
     if (!isSilent) {
@@ -391,17 +397,21 @@ export default function WhatsApp() {
           }
         }
 
-        // Atualizar progresso
-        const progress = Math.round(((i + 1) / totalGroups) * 100);
+        // Atualizar progresso de forma mais confiável
+        const progress = Math.min(100, Math.round(((i + 1) / totalGroups) * 100));
         setImportProgress(progress);
         
         if (!isSilent) {
-          console.log(`📥 [${i + 1}/${totalGroups}] ${group.subject || 'Sem nome'} - ${group.id}`);
+          console.log(`📥 [${i + 1}/${totalGroups}] ${group.subject || 'Sem nome'} - ${progress}%`);
         }
+        
+        // Pequeno delay para garantir que o UI atualize
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
-      // Garantir que chegue em 100%
+      // Garantir que chegue em 100% e permaneça por 1 segundo
       setImportProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setLastSync(new Date());
 
       if (!isSilent) {
@@ -424,6 +434,8 @@ export default function WhatsApp() {
       }
     } finally {
       setImporting(false);
+      // Resetar progresso após finalizar
+      setTimeout(() => setImportProgress(0), 2000);
     }
   };
 

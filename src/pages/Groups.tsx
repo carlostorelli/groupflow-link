@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,7 @@ export default function Groups() {
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectQrCode, setReconnectQrCode] = useState<string | null>(null);
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -281,6 +282,110 @@ export default function Groups() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncGroups = async () => {
+    if (!instanceName) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Nenhuma instância WhatsApp conectada",
+      });
+      return;
+    }
+
+    setSyncing(true);
+    
+    try {
+      // Buscar o instance_id do banco
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data: instances } = await supabase
+        .from('instances')
+        .select('id, instance_id')
+        .eq('user_id', user.id)
+        .eq('status', 'connected')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!instances || instances.length === 0) {
+        throw new Error('Nenhuma instância conectada');
+      }
+
+      const instance = instances[0];
+
+      // Buscar grupos da Evolution API
+      const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
+        body: { instanceName: instance.instance_id }
+      });
+
+      if (error) throw error;
+
+      if (!data.success || !data.groups) {
+        throw new Error('Erro ao buscar grupos da Evolution API');
+      }
+
+      const groups = data.groups;
+      let newGroups = 0;
+      let updatedGroups = 0;
+
+      // Processar cada grupo
+      for (const group of groups) {
+        const { data: existingGroup } = await supabase
+          .from('groups')
+          .select('id')
+          .eq('wa_group_id', group.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        let groupStatus: 'open' | 'closed' | 'full' = 'open';
+        if (group.restrict || group.announce) {
+          groupStatus = 'closed';
+        }
+
+        const { error: upsertError } = await supabase
+          .from('groups')
+          .upsert({
+            user_id: user.id,
+            instance_id: instance.id,
+            wa_group_id: group.id,
+            name: group.subject || 'Sem nome',
+            description: group.desc || null,
+            members_count: group.size || 0,
+            member_limit: 1024,
+            status: groupStatus,
+          } as any, {
+            onConflict: 'wa_group_id,user_id'
+          });
+
+        if (!upsertError) {
+          if (existingGroup) {
+            updatedGroups++;
+          } else {
+            newGroups++;
+          }
+        }
+      }
+
+      toast({
+        title: "Grupos sincronizados!",
+        description: `${newGroups} novos, ${updatedGroups} atualizados`,
+      });
+
+      // Recarregar grupos
+      await loadGroups();
+
+    } catch (error: any) {
+      console.error('Erro ao sincronizar grupos:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao sincronizar grupos",
+        description: error.message || "Tente novamente",
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -842,7 +947,17 @@ export default function Groups() {
             Gerencie todos os seus grupos do WhatsApp em um só lugar - Total de {groups.length} grupos
           </p>
         </div>
-        <CreateMultipleGroups />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSyncGroups}
+            disabled={syncing || connectionStatus !== 'connected'}
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", syncing && "animate-spin")} />
+            {syncing ? "Sincronizando..." : "Sincronizar Grupos"}
+          </Button>
+          <CreateMultipleGroups />
+        </div>
       </div>
 
       {/* Alerta de Status da Conexão */}
