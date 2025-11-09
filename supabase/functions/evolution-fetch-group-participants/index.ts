@@ -82,21 +82,26 @@ serve(async (req) => {
     
     if (Array.isArray(metadata)) {
       // Se for um array direto de participantes
-      participants = metadata.map((p: any) => p.id || p.jid || p);
+      // IMPORTANTE: Priorizar 'jid' sobre 'id' pois 'id' pode conter @lid
+      participants = metadata.map((p: any) => p.jid || p.id || p);
     } else if (metadata.participants && Array.isArray(metadata.participants)) {
       // Se vier dentro de um objeto com campo participants
-      participants = metadata.participants.map((p: any) => p.id || p.jid || p);
+      // IMPORTANTE: Priorizar 'jid' sobre 'id' pois 'id' pode conter @lid
+      participants = metadata.participants.map((p: any) => p.jid || p.id || p);
     } else if (metadata.data && Array.isArray(metadata.data)) {
       // Se vier dentro de data
-      participants = metadata.data.map((p: any) => p.id || p.jid || p);
+      // IMPORTANTE: Priorizar 'jid' sobre 'id' pois 'id' pode conter @lid
+      participants = metadata.data.map((p: any) => p.jid || p.id || p);
     }
+
+    console.log(`📋 Participantes extraídos (primeiros 3):`, participants.slice(0, 3));
 
     // Filtrar apenas JIDs válidos (formato: número@s.whatsapp.net)
     const validParticipants = participants.filter((p: string) => 
       typeof p === 'string' && (p.includes('@s.whatsapp.net') || p.includes('@g.us'))
     );
 
-    console.log(`✅ ${validParticipants.length} participantes encontrados`);
+    console.log(`✅ ${validParticipants.length} participantes válidos encontrados`);
 
     if (validParticipants.length === 0) {
       throw new Error('Nenhum participante encontrado no grupo');
