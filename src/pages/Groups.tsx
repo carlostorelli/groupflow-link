@@ -286,53 +286,71 @@ export default function Groups() {
   };
 
   const handleSyncGroups = async () => {
-    if (!instanceName) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Nenhuma instância WhatsApp conectada",
-      });
-      return;
-    }
-
+    console.log('🔄 Iniciando sincronização manual de grupos...');
+    
     setSyncing(true);
     
     try {
       // Buscar o instance_id do banco
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!user) {
+        console.error('❌ Usuário não autenticado');
+        throw new Error('Usuário não autenticado');
+      }
 
-      const { data: instances } = await supabase
+      console.log('✅ Usuário autenticado:', user.id);
+
+      const { data: instances, error: instanceError } = await supabase
         .from('instances')
-        .select('id, instance_id')
+        .select('id, instance_id, status')
         .eq('user_id', user.id)
         .eq('status', 'connected')
         .order('created_at', { ascending: false })
         .limit(1);
 
+      console.log('📱 Instâncias encontradas:', instances);
+
+      if (instanceError) {
+        console.error('❌ Erro ao buscar instâncias:', instanceError);
+        throw instanceError;
+      }
+
       if (!instances || instances.length === 0) {
-        throw new Error('Nenhuma instância conectada');
+        console.error('❌ Nenhuma instância conectada');
+        throw new Error('Nenhuma instância conectada. Conecte seu WhatsApp primeiro.');
       }
 
       const instance = instances[0];
+      console.log('✅ Usando instância:', instance.instance_id);
 
       // Buscar grupos da Evolution API
+      console.log('📡 Chamando evolution-fetch-groups...');
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
         body: { instanceName: instance.instance_id }
       });
 
-      if (error) throw error;
+      console.log('📊 Resposta da Evolution API:', { data, error });
+
+      if (error) {
+        console.error('❌ Erro na chamada da função:', error);
+        throw error;
+      }
 
       if (!data.success || !data.groups) {
-        throw new Error('Erro ao buscar grupos da Evolution API');
+        console.error('❌ Resposta inválida da API:', data);
+        throw new Error(data.error || 'Erro ao buscar grupos da Evolution API');
       }
 
       const groups = data.groups;
+      console.log(`✅ ${groups.length} grupos recebidos da API`);
+
       let newGroups = 0;
       let updatedGroups = 0;
 
       // Processar cada grupo
       for (const group of groups) {
+        console.log(`🔍 Processando grupo: ${group.subject} (${group.id})`);
+        
         const { data: existingGroup } = await supabase
           .from('groups')
           .select('id')
@@ -360,25 +378,31 @@ export default function Groups() {
             onConflict: 'wa_group_id,user_id'
           });
 
-        if (!upsertError) {
+        if (upsertError) {
+          console.error(`❌ Erro ao salvar grupo ${group.subject}:`, upsertError);
+        } else {
           if (existingGroup) {
             updatedGroups++;
+            console.log(`✅ Grupo atualizado: ${group.subject}`);
           } else {
             newGroups++;
+            console.log(`✅ Grupo novo: ${group.subject}`);
           }
         }
       }
+
+      console.log(`✅ Sincronização completa: ${newGroups} novos, ${updatedGroups} atualizados`);
 
       toast({
         title: "Grupos sincronizados!",
         description: `${newGroups} novos, ${updatedGroups} atualizados`,
       });
 
-      // Recarregar grupos
+      // Recarregar grupos (não é necessário pois o realtime já atualiza, mas vamos manter por segurança)
       await loadGroups();
 
     } catch (error: any) {
-      console.error('Erro ao sincronizar grupos:', error);
+      console.error('❌ Erro ao sincronizar grupos:', error);
       toast({
         variant: "destructive",
         title: "Erro ao sincronizar grupos",
@@ -386,6 +410,7 @@ export default function Groups() {
       });
     } finally {
       setSyncing(false);
+      console.log('🏁 Sincronização finalizada');
     }
   };
 
