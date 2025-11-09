@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, QrCode, RefreshCw, Download } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw, Download, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
@@ -21,6 +21,7 @@ export default function WhatsApp() {
   const [importedGroups, setImportedGroups] = useState<string[]>([]);
   const [autoSync, setAutoSync] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [cleaning, setCleaning] = useState(false);
   const { toast } = useToast();
 
   // Carregar estado da conexão do banco ao montar
@@ -425,6 +426,54 @@ export default function WhatsApp() {
     }
   };
 
+  const handleCleanOldInstances = async () => {
+    setCleaning(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Buscar todas as instâncias antigas (desconectadas ou pending)
+      const { data: oldInstances } = await supabase
+        .from('instances')
+        .select('instance_id, status')
+        .eq('user_id', user.id)
+        .in('status', ['disconnected', 'pending']);
+
+      if (!oldInstances || oldInstances.length === 0) {
+        toast({
+          title: "Nenhuma instância para limpar",
+          description: "Não há instâncias antigas desconectadas",
+        });
+        return;
+      }
+
+      // Deletar do banco de dados
+      const { error } = await supabase
+        .from('instances')
+        .delete()
+        .eq('user_id', user.id)
+        .in('status', ['disconnected', 'pending']);
+
+      if (error) throw error;
+
+      toast({
+        title: "Instâncias limpas!",
+        description: `${oldInstances.length} instância(s) antiga(s) removida(s)`,
+      });
+
+      console.log(`🗑️ ${oldInstances.length} instâncias antigas removidas`);
+    } catch (error: any) {
+      console.error('Erro ao limpar instâncias:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao limpar instâncias",
+        description: error.message,
+      });
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -553,6 +602,17 @@ export default function WhatsApp() {
                     Desconectar
                   </Button>
                 </div>
+                
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCleanOldInstances}
+                  disabled={cleaning}
+                  className="w-full text-muted-foreground hover:text-foreground"
+                >
+                  <Trash2 className="mr-2 h-3 w-3" />
+                  {cleaning ? "Limpando..." : "Limpar Instâncias Antigas"}
+                </Button>
               </div>
             ) : (
               <div className="space-y-2">
