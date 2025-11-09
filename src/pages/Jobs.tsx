@@ -201,8 +201,9 @@ export default function Jobs() {
       jobPayload.name = payload;
     }
 
-    // Combinar data e hora
-    const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
+    // Combinar data e hora no timezone local
+    const localDateTime = new Date(`${scheduledDate}T${scheduledTime}:00`);
+    const scheduledFor = localDateTime.toISOString();
 
     createJobMutation.mutate({
       action_type: actionType,

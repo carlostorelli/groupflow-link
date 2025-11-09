@@ -94,11 +94,30 @@ Deno.serve(async (req) => {
         for (const group of groupsData) {
           try {
             if (job.action_type === 'send_message') {
+              // Processar menções
+              let mentions: string[] | undefined = undefined;
+              const message = job.payload.message || '';
+              
+              if (message.includes('@todos')) {
+                // Buscar todos os participantes do grupo
+                const { data: participantsData } = await supabase.functions.invoke('evolution-fetch-group-participants', {
+                  body: {
+                    instanceName,
+                    groupId: group.wa_group_id,
+                  }
+                });
+
+                if (participantsData?.participants) {
+                  mentions = participantsData.participants.map((p: any) => p.id);
+                }
+              }
+
               const { error: sendError } = await supabase.functions.invoke('evolution-send-message', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
-                  message: job.payload.message || '',
+                  message: message,
+                  mentions: mentions,
                 }
               });
 
