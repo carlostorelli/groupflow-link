@@ -85,12 +85,13 @@ serve(async (req) => {
     }
 
     const qrData = await qrResponse.json();
-    console.log('✅ QR Code obtido com sucesso');
+    console.log('✅ Nova instância criada com QR code');
 
     return new Response(
       JSON.stringify({
         success: true,
         qrcode: qrData.qrcode || qrData,
+        instance: qrData.instance,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

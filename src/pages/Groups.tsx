@@ -96,43 +96,63 @@ export default function Groups() {
         body: { instanceName }
       });
 
+      console.log('Resposta reconnect:', { data, error });
+
       if (error) throw error;
 
-      if (data.success && data.qrcode?.base64) {
-        setReconnectQrCode(data.qrcode.base64);
-        setShowReconnectDialog(true);
-        toast({
-          title: "QR Code gerado!",
-          description: "Escaneie o código com seu WhatsApp para reconectar",
-        });
-
-        // Iniciar polling para verificar conexão
-        const pollInterval = setInterval(async () => {
-          const { data: statusData } = await supabase.functions.invoke('evolution-check-status', {
-            body: { instanceName }
+      if (data.success && data.qrcode) {
+        // Verificar diferentes formatos de QR code
+        const qrCodeBase64 = data.qrcode.base64 || data.qrcode;
+        
+        if (qrCodeBase64) {
+          setReconnectQrCode(qrCodeBase64);
+          setShowReconnectDialog(true);
+          toast({
+            title: "QR Code gerado!",
+            description: "Escaneie o código com seu WhatsApp para reconectar",
           });
 
-          if (statusData?.state === 'open') {
-            clearInterval(pollInterval);
-            setConnectionStatus('connected');
-            setShowReconnectDialog(false);
-            setReconnectQrCode(null);
-            
-            // Atualizar status no banco
-            await supabase
-              .from('instances')
-              .update({ status: 'connected' })
-              .eq('instance_id', instanceName);
-
-            toast({
-              title: "WhatsApp reconectado!",
-              description: "Sua instância foi reconectada com sucesso",
+          // Iniciar polling para verificar conexão
+          const pollInterval = setInterval(async () => {
+            const { data: statusData } = await supabase.functions.invoke('evolution-check-status', {
+              body: { instanceName }
             });
-          }
-        }, 3000);
 
-        // Limpar polling após 2 minutos
-        setTimeout(() => clearInterval(pollInterval), 120000);
+            console.log('Polling status:', statusData);
+
+            // Verificar múltiplas possibilidades de status conectado
+            const connectedStatuses = ['open', 'OPEN', 'connected', 'CONNECTED'];
+            const currentStatus = statusData?.instance?.state || statusData?.status || statusData?.rawData?.instance?.state;
+            
+            if (statusData?.success && currentStatus && connectedStatuses.includes(currentStatus)) {
+              clearInterval(pollInterval);
+              setConnectionStatus('connected');
+              setShowReconnectDialog(false);
+              setReconnectQrCode(null);
+              
+              // Atualizar status no banco
+              await supabase
+                .from('instances')
+                .update({ status: 'connected' })
+                .eq('instance_id', instanceName);
+
+              toast({
+                title: "WhatsApp reconectado!",
+                description: "Sua instância foi reconectada com sucesso",
+              });
+              
+              // Recarregar grupos após reconexão
+              loadGroups();
+            }
+          }, 3000);
+
+          // Limpar polling após 2 minutos
+          setTimeout(() => clearInterval(pollInterval), 120000);
+        } else {
+          throw new Error('QR Code não encontrado na resposta');
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao gerar QR code');
       }
     } catch (error: any) {
       console.error('Erro ao reconectar:', error);
