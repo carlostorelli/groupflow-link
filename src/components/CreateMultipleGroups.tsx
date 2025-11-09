@@ -82,7 +82,7 @@ export function CreateMultipleGroups() {
 
     toast({
       title: "Grupos criados!",
-      description: `${qty} grupo(s) criado(s): ${groupName} #1, ${groupName} #2, ${groupName} #3...`,
+      description: `${qty} grupo(s) criado(s): #1 ${groupName}, #2 ${groupName}, #3 ${groupName}...`,
     });
   };
 
@@ -121,7 +121,7 @@ export function CreateMultipleGroups() {
               onChange={(e) => setQuantity(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Os grupos serão nomeados como: {groupName} #1, {groupName} #2, {groupName} #3...
+              Os grupos serão nomeados como: #1 {groupName}, #2 {groupName}, #3 {groupName}...
             </p>
           </div>
 
