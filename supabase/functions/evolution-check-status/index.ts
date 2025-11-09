@@ -77,13 +77,22 @@ serve(async (req) => {
     }
 
     const statusData = await evolutionResponse.json();
-    console.log('Status retornado pela Evolution API:', JSON.stringify(statusData));
+    console.log('✅ Status retornado pela Evolution API:', JSON.stringify(statusData, null, 2));
+
+    // Extrair o status de diferentes possíveis locais na resposta
+    const extractedStatus = 
+      statusData?.instance?.state || 
+      statusData?.state || 
+      statusData?.status ||
+      statusData?.instance?.status;
+
+    console.log('📊 Status extraído:', extractedStatus);
 
     return new Response(
       JSON.stringify({
         success: true,
-        status: statusData.state || statusData.status,
-        instance: statusData.instance,
+        status: extractedStatus,
+        instance: statusData.instance || statusData,
         rawData: statusData,
       }),
       { 

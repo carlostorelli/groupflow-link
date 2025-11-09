@@ -114,35 +114,65 @@ export default function Groups() {
 
           // Iniciar polling para verificar conexão
           const pollInterval = setInterval(async () => {
-            const { data: statusData } = await supabase.functions.invoke('evolution-check-status', {
-              body: { instanceName }
-            });
-
-            console.log('Polling status:', statusData);
-
-            // Verificar múltiplas possibilidades de status conectado
-            const connectedStatuses = ['open', 'OPEN', 'connected', 'CONNECTED'];
-            const currentStatus = statusData?.instance?.state || statusData?.status || statusData?.rawData?.instance?.state;
-            
-            if (statusData?.success && currentStatus && connectedStatuses.includes(currentStatus)) {
-              clearInterval(pollInterval);
-              setConnectionStatus('connected');
-              setShowReconnectDialog(false);
-              setReconnectQrCode(null);
-              
-              // Atualizar status no banco
-              await supabase
-                .from('instances')
-                .update({ status: 'connected' })
-                .eq('instance_id', instanceName);
-
-              toast({
-                title: "WhatsApp reconectado!",
-                description: "Sua instância foi reconectada com sucesso",
+            try {
+              const { data: statusData, error: statusError } = await supabase.functions.invoke('evolution-check-status', {
+                body: { instanceName }
               });
+
+              console.log('🔄 Polling status:', {
+                success: statusData?.success,
+                status: statusData?.status,
+                instanceState: statusData?.instance?.state,
+                rawInstanceState: statusData?.rawData?.instance?.state,
+                fullData: statusData
+              });
+
+              if (statusError) {
+                console.error('Erro no polling:', statusError);
+                return;
+              }
+
+              // Verificar múltiplas possibilidades de status conectado
+              const connectedStatuses = ['open', 'OPEN', 'connected', 'CONNECTED'];
               
-              // Recarregar grupos após reconexão
-              loadGroups();
+              // Tentar pegar o status de diferentes lugares na resposta
+              const currentStatus = 
+                statusData?.status || 
+                statusData?.rawData?.instance?.state || 
+                statusData?.instance?.state ||
+                statusData?.rawData?.state;
+              
+              console.log('Status detectado:', currentStatus);
+              
+              if (statusData?.success && currentStatus && connectedStatuses.includes(currentStatus)) {
+                console.log('✅ WhatsApp conectado! Limpando polling...');
+                clearInterval(pollInterval);
+                setConnectionStatus('connected');
+                setShowReconnectDialog(false);
+                setReconnectQrCode(null);
+                setReconnecting(false);
+                
+                // Atualizar status no banco
+                await supabase
+                  .from('instances')
+                  .update({ 
+                    status: 'connected',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('instance_id', instanceName);
+
+                toast({
+                  title: "WhatsApp reconectado!",
+                  description: "Sua instância foi reconectada com sucesso",
+                });
+                
+                // Recarregar grupos após reconexão
+                setTimeout(() => {
+                  loadGroups();
+                }, 1000);
+              }
+            } catch (pollError) {
+              console.error('Erro no polling:', pollError);
             }
           }, 3000);
 

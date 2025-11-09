@@ -74,18 +74,25 @@ serve(async (req) => {
 
     if (!qrResponse.ok) {
       const errorText = await qrResponse.text();
-      console.error('❌ Erro da Evolution API:', errorText);
+      console.error('❌ Erro da Evolution API:', qrResponse.status, errorText);
       
-      // Se retornou 404, a instância não existe mais
-      if (qrResponse.status === 404) {
-        throw new Error('Instância não existe mais na Evolution API. Crie uma nova conexão na página WhatsApp.');
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Erro na Evolution API (${qrResponse.status}): ${errorText}`);
       }
       
-      throw new Error(`Erro ao buscar QR code: ${errorText}`);
+      // Se o erro for de nome duplicado
+      if (errorData?.response?.message?.[0]?.includes('already in use')) {
+        throw new Error('Esta instância já existe. Aguarde alguns segundos e tente novamente.');
+      }
+      
+      throw new Error(`Erro na Evolution API: ${JSON.stringify(errorData)}`);
     }
 
     const qrData = await qrResponse.json();
-    console.log('✅ Nova instância criada com QR code');
+    console.log('✅ Resposta completa:', JSON.stringify(qrData, null, 2));
 
     return new Response(
       JSON.stringify({
