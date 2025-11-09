@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,36 +48,22 @@ import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle } 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
-const mockJobs = [
-  {
-    id: "1",
-    action: "send_message",
-    scheduledFor: "2024-12-01 14:00",
-    status: "pending",
-  },
-  {
-    id: "2",
-    action: "update_description",
-    scheduledFor: "2024-12-02 09:00",
-    status: "pending",
-  },
-  {
-    id: "3",
-    action: "close_groups",
-    scheduledFor: "2024-11-30 18:00",
-    status: "done",
-  },
-];
+interface Job {
+  id: string;
+  action_type: string;
+  scheduled_for: string;
+  status: string;
+  payload: any;
+}
 
-const mockGroups = [
-  { id: "1", name: "Grupo 1" },
-  { id: "2", name: "Grupo 2" },
-  { id: "3", name: "Grupo 3" },
-  { id: "4", name: "Grupo VIP" },
-];
+interface Group {
+  id: string;
+  name: string;
+  wa_group_id: string;
+}
 
 export default function Jobs() {
-  const [jobs] = useState(mockJobs);
+  const queryClient = useQueryClient();
   const [actionType, setActionType] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -85,7 +72,81 @@ export default function Jobs() {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  // Carregar jobs do banco de dados
+  const { data: jobs = [], isLoading: loadingJobs } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('scheduled_for', { ascending: false });
+
+      if (error) throw error;
+      return data as Job[];
+    },
+  });
+
+  // Carregar grupos do usuário
+  const { data: groups = [] } = useQuery({
+    queryKey: ['user-groups'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, name, wa_group_id')
+        .order('name');
+
+      if (error) throw error;
+      return data as Group[];
+    },
+  });
+
+  // Mutation para criar novo job
+  const createJobMutation = useMutation({
+    mutationFn: async (newJob: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data, error } = await supabase
+        .from('jobs')
+        .insert({
+          user_id: user.id,
+          action_type: newJob.action_type,
+          scheduled_for: newJob.scheduled_for,
+          payload: newJob.payload,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast({
+        title: "Ação agendada!",
+        description: "A ação será executada no horário programado",
+      });
+      // Resetar form
+      setActionType("");
+      setScheduledDate("");
+      setScheduledTime("");
+      setPayload("");
+      setMediaFile(null);
+      setSelectedGroups([]);
+      setDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erro ao agendar",
+        description: error.message,
+      });
+    },
+  });
 
   const toggleGroup = (groupId: string) => {
     setSelectedGroups(prev =>
@@ -100,7 +161,7 @@ export default function Jobs() {
     setMentionOpen(false);
   };
 
-  const handleScheduleJob = () => {
+  const handleScheduleJob = async () => {
     if (!actionType || !scheduledDate || !scheduledTime) {
       toast({
         variant: "destructive",
@@ -110,9 +171,43 @@ export default function Jobs() {
       return;
     }
 
-    toast({
-      title: "Ação agendada!",
-      description: `Sua ação será executada em ${scheduledDate} às ${scheduledTime}`,
+    if (selectedGroups.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nenhum grupo selecionado",
+        description: "Selecione pelo menos um grupo",
+      });
+      return;
+    }
+
+    // Construir payload baseado no tipo de ação
+    let jobPayload: any = {
+      groups: selectedGroups,
+    };
+
+    if (actionType === 'send_message') {
+      if (!payload.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Mensagem vazia",
+          description: "Digite uma mensagem para enviar",
+        });
+        return;
+      }
+      jobPayload.message = payload;
+    } else if (actionType === 'update_description') {
+      jobPayload.description = payload;
+    } else if (actionType === 'change_group_name') {
+      jobPayload.name = payload;
+    }
+
+    // Combinar data e hora
+    const scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
+
+    createJobMutation.mutate({
+      action_type: actionType,
+      scheduled_for: scheduledFor,
+      payload: jobPayload,
     });
   };
 
@@ -187,7 +282,7 @@ export default function Jobs() {
           </p>
         </div>
 
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -222,21 +317,27 @@ export default function Jobs() {
               <div className="space-y-2">
                 <Label>Selecionar Grupos</Label>
                 <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
-                  {mockGroups.map((group) => (
-                    <div key={group.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`group-${group.id}`}
-                        checked={selectedGroups.includes(group.id)}
-                        onCheckedChange={() => toggleGroup(group.id)}
-                      />
-                      <Label
-                        htmlFor={`group-${group.id}`}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {group.name}
-                      </Label>
-                    </div>
-                  ))}
+                  {groups.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum grupo disponível. Importe grupos primeiro.
+                    </p>
+                  ) : (
+                    groups.map((group) => (
+                      <div key={group.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`group-${group.id}`}
+                          checked={selectedGroups.includes(group.id)}
+                          onCheckedChange={() => toggleGroup(group.id)}
+                        />
+                        <Label
+                          htmlFor={`group-${group.id}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          {group.name}
+                        </Label>
+                      </div>
+                    ))
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {selectedGroups.length} grupo(s) selecionado(s)
@@ -382,9 +483,13 @@ export default function Jobs() {
                 </div>
               )}
 
-              <Button onClick={handleScheduleJob} className="w-full">
+              <Button 
+                onClick={handleScheduleJob} 
+                className="w-full"
+                disabled={createJobMutation.isPending}
+              >
                 <Calendar className="mr-2 h-4 w-4" />
-                Agendar Ação
+                {createJobMutation.isPending ? 'Agendando...' : 'Agendar Ação'}
               </Button>
             </div>
           </DialogContent>
@@ -409,37 +514,47 @@ export default function Jobs() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ação</TableHead>
-                <TableHead>Data/Hora</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job) => (
-                <TableRow key={job.id}>
-                  <TableCell className="font-medium">
-                    {getActionLabel(job.action)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {job.scheduledFor}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(job.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      Detalhes
-                    </Button>
-                  </TableCell>
+          {loadingJobs ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Nenhum agendamento criado ainda</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ação</TableHead>
+                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <TableRow key={job.id}>
+                    <TableCell className="font-medium">
+                      {getActionLabel(job.action_type)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {new Date(job.scheduled_for).toLocaleString('pt-BR')}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(job.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm">
+                        Detalhes
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
