@@ -91,16 +91,23 @@ export default function WhatsApp() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (autoSync && connected && instanceName && !importing) {
+    if (autoSync && connected && instanceName) {
       console.log('🔄 Auto-sync ativado - sincronizando a cada 5 minutos');
       
-      // Sync imediato ao ativar
-      handleImportGroups(true);
+      // Sync imediato ao ativar (só se não estiver importando)
+      if (!importing) {
+        handleImportGroups(true);
+      }
       
       // Sync periódico
       interval = setInterval(() => {
         console.log('⏰ Executando auto-sync agendado...');
-        handleImportGroups(true);
+        // Verificar se não está importando antes de executar
+        if (!importing) {
+          handleImportGroups(true);
+        } else {
+          console.log('⏸️ Auto-sync aguardando importação em andamento...');
+        }
       }, 5 * 60 * 1000); // 5 minutos
     }
     
@@ -110,7 +117,7 @@ export default function WhatsApp() {
         clearInterval(interval);
       }
     };
-  }, [autoSync, connected, instanceName, importing]);
+  }, [autoSync, connected, instanceName]);
 
   const updateInstanceStatus = async (status: 'pending' | 'connected' | 'disconnected') => {
     try {
@@ -606,7 +613,17 @@ export default function WhatsApp() {
                         <Button
                           variant={autoSync ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setAutoSync(!autoSync)}
+                          onClick={() => {
+                            const newValue = !autoSync;
+                            setAutoSync(newValue);
+                            toast({
+                              title: newValue ? "Auto-sync ativado!" : "Auto-sync desativado",
+                              description: newValue 
+                                ? "Seus grupos serão sincronizados automaticamente a cada 5 minutos"
+                                : "Auto-sync foi desativado",
+                            });
+                          }}
+                          disabled={!connected}
                         >
                           {autoSync ? "Ativado" : "Ativar"}
                         </Button>
