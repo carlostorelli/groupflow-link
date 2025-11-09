@@ -252,8 +252,18 @@ export default function Groups() {
   );
 
   const insertMention = (mention: string) => {
-    setMessage(prev => prev + mention);
+    console.log('🔖 Inserindo menção:', mention);
+    setMessage(prev => {
+      const newMessage = prev + mention;
+      console.log('💬 Nova mensagem:', newMessage);
+      return newMessage;
+    });
     setMentionOpen(false);
+    
+    toast({
+      title: "Menção adicionada",
+      description: `"${mention.trim()}" foi adicionado à mensagem`,
+    });
   };
 
   const toggleGroup = (id: string) => {
@@ -803,23 +813,43 @@ export default function Groups() {
                     <Label htmlFor="message">Mensagem</Label>
                     <Popover open={mentionOpen} onOpenChange={setMentionOpen}>
                       <PopoverTrigger asChild>
-                        <Button type="button" variant="outline" size="sm">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            console.log('🔘 Botão Mencionar clicado');
+                            setMentionOpen(!mentionOpen);
+                          }}
+                        >
                           <AtSign className="mr-2 h-4 w-4" />
                           Mencionar
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[200px] p-0">
+                      <PopoverContent className="w-[200px] p-0" align="end">
                         <Command>
-                          <CommandInput placeholder="Buscar..." />
+                          <CommandInput placeholder="Buscar menção..." />
                           <CommandEmpty>Nenhuma opção encontrada.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem onSelect={() => insertMention("@todos ")}>
-                              <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
-                              @todos
+                          <CommandGroup heading="Opções de Menção">
+                            <CommandItem 
+                              onSelect={() => {
+                                console.log('✅ Selecionou @todos');
+                                insertMention("@todos ");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <AtSign className="mr-2 h-4 w-4" />
+                              Mencionar todos
                             </CommandItem>
-                            <CommandItem onSelect={() => insertMention("@pessoa ")}>
-                              <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
-                              @pessoa
+                            <CommandItem 
+                              onSelect={() => {
+                                console.log('✅ Selecionou @pessoa');
+                                insertMention("@pessoa ");
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <AtSign className="mr-2 h-4 w-4" />
+                              Mencionar pessoa específica
                             </CommandItem>
                           </CommandGroup>
                         </Command>
