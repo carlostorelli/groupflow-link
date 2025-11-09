@@ -288,13 +288,17 @@ export default function Groups() {
   const handleSyncGroups = async () => {
     console.log('🔄 Iniciando sincronização manual de grupos...');
     
+    if (syncing) {
+      console.log('⚠️ Sincronização já em andamento, aguardando...');
+      return;
+    }
+
     setSyncing(true);
     
     try {
-      // Buscar o instance_id do banco
+      // Buscar user_id e instância conectada
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.error('❌ Usuário não autenticado');
         throw new Error('Usuário não autenticado');
       }
 
@@ -302,55 +306,46 @@ export default function Groups() {
 
       const { data: instances, error: instanceError } = await supabase
         .from('instances')
-        .select('id, instance_id, status')
+        .select('id, instance_id')
         .eq('user_id', user.id)
         .eq('status', 'connected')
         .order('created_at', { ascending: false })
         .limit(1);
 
-      console.log('📱 Instâncias encontradas:', instances);
-
-      if (instanceError) {
-        console.error('❌ Erro ao buscar instâncias:', instanceError);
-        throw instanceError;
-      }
+      if (instanceError) throw instanceError;
 
       if (!instances || instances.length === 0) {
-        console.error('❌ Nenhuma instância conectada');
         throw new Error('Nenhuma instância conectada. Conecte seu WhatsApp primeiro.');
       }
 
-      const instance = instances[0];
-      console.log('✅ Usando instância:', instance.instance_id);
+      const instanceId = instances[0].id;
+      const instanceName = instances[0].instance_id;
+
+      console.log(`✅ Usando instância: ${instanceName}`);
 
       // Buscar grupos da Evolution API
-      console.log('📡 Chamando evolution-fetch-groups...');
+      console.log('📡 Buscando grupos da Evolution API...');
       const { data, error } = await supabase.functions.invoke('evolution-fetch-groups', {
-        body: { instanceName: instance.instance_id }
+        body: { instanceName }
       });
 
-      console.log('📊 Resposta da Evolution API:', { data, error });
-
-      if (error) {
-        console.error('❌ Erro na chamada da função:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       if (!data.success || !data.groups) {
-        console.error('❌ Resposta inválida da API:', data);
-        throw new Error(data.error || 'Erro ao buscar grupos da Evolution API');
+        throw new Error('Erro ao buscar grupos');
       }
 
       const groups = data.groups;
-      console.log(`✅ ${groups.length} grupos recebidos da API`);
+      console.log(`✅ ${groups.length} grupos encontrados`);
 
+      // Importar grupos progressivamente
       let newGroups = 0;
       let updatedGroups = 0;
 
-      // Processar cada grupo
-      for (const group of groups) {
-        console.log(`🔍 Processando grupo: ${group.subject} (${group.id})`);
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
         
+        // Verificar se já existe
         const { data: existingGroup } = await supabase
           .from('groups')
           .select('id')
@@ -358,16 +353,18 @@ export default function Groups() {
           .eq('user_id', user.id)
           .maybeSingle();
 
+        // Determinar status do grupo baseado nas configurações
         let groupStatus: 'open' | 'closed' | 'full' = 'open';
         if (group.restrict || group.announce) {
           groupStatus = 'closed';
         }
-
-        const { error: upsertError } = await supabase
+        
+        // Salvar no banco com dados corretos
+        const { error: insertError } = await supabase
           .from('groups')
           .upsert({
             user_id: user.id,
-            instance_id: instance.id,
+            instance_id: instanceId,
             wa_group_id: group.id,
             name: group.subject || 'Sem nome',
             description: group.desc || null,
@@ -378,16 +375,16 @@ export default function Groups() {
             onConflict: 'wa_group_id,user_id'
           });
 
-        if (upsertError) {
-          console.error(`❌ Erro ao salvar grupo ${group.subject}:`, upsertError);
+        if (insertError) {
+          console.error('Erro ao salvar grupo:', insertError);
         } else {
           if (existingGroup) {
             updatedGroups++;
-            console.log(`✅ Grupo atualizado: ${group.subject}`);
           } else {
             newGroups++;
-            console.log(`✅ Grupo novo: ${group.subject}`);
           }
+          
+          console.log(`📥 [${i + 1}/${groups.length}] ${group.subject || 'Sem nome'} - ${group.id}`);
         }
       }
 
@@ -397,9 +394,6 @@ export default function Groups() {
         title: "Grupos sincronizados!",
         description: `${newGroups} novos, ${updatedGroups} atualizados`,
       });
-
-      // Recarregar grupos (não é necessário pois o realtime já atualiza, mas vamos manter por segurança)
-      await loadGroups();
 
     } catch (error: any) {
       console.error('❌ Erro ao sincronizar grupos:', error);
