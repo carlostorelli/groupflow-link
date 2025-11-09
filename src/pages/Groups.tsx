@@ -869,6 +869,16 @@ export default function Groups() {
         </Alert>
       )}
 
+      {/* Disclaimer sobre ações administrativas */}
+      <Alert variant="warning">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>ATENÇÃO</AlertTitle>
+        <AlertDescription>
+          Fechar grupos, Abrir grupos, Alterar nome, Alterar foto e Alterar descrição{" "}
+          <strong>só funcionam em grupos ao qual você é administrador, caso contrário dará erro!</strong>
+        </AlertDescription>
+      </Alert>
+
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input

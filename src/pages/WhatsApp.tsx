@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, QrCode, RefreshCw, Download, Trash2 } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw, Download, Trash2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
@@ -477,11 +478,21 @@ export default function WhatsApp() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-4xl font-bold">Conexão WhatsApp</h1>
+        <h1 className="text-4xl font-bold">Conexão do WhatsApp</h1>
         <p className="text-muted-foreground mt-2">
           Conecte sua conta do WhatsApp para gerenciar grupos
         </p>
       </div>
+
+      {/* Disclaimer sobre uso responsável */}
+      <Alert variant="warning">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>ATENÇÃO</AlertTitle>
+        <AlertDescription>
+          Evite fazer spam para não perder o seu número, e{" "}
+          <strong>por segurança tenha mais de 1 administrador em seu grupo</strong>
+        </AlertDescription>
+      </Alert>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
