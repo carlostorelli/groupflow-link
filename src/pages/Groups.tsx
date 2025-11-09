@@ -749,7 +749,7 @@ export default function Groups() {
       toast({
         variant: "destructive",
         title: "Permissão negada",
-        description: `Você não é admin em ${nonAdminGroups.length} grupo(s). Apenas admins podem alterar configurações dos grupos.`,
+        description: `Você não é admin em ${nonAdminGroups.length} grupo(s): ${nonAdminGroups.map(g => g.name).join(', ')}. Apenas admins podem alterar configurações dos grupos.`,
       });
       return;
     }
@@ -757,9 +757,33 @@ export default function Groups() {
     setLoading(true);
     let successCount = 0;
     let errorCount = 0;
+    const errorDetails: string[] = [];
+
+    // Criar registro no histórico
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const actionTypeMap: Record<string, string> = {
+      "Fechar grupos": "close_groups",
+      "Abrir grupos": "open_groups",
+      "Alterar nome": "change_name",
+      "Alterar foto": "change_photo",
+      "Alterar descrição": "change_description",
+    };
+
+    const { data: historyRecord } = await supabase
+      .from('action_history')
+      .insert({
+        user_id: user.id,
+        action_type: actionTypeMap[action] || action,
+        description: `${action} em ${selectedGroups.length} grupo(s)`,
+        status: 'running',
+        target_count: selectedGroups.length,
+      })
+      .select()
+      .single();
 
     try {
-
       for (const group of selectedGroupsData) {
         try {
           let result;
@@ -770,12 +794,14 @@ export default function Groups() {
                 body: { 
                   instanceName: instanceName,
                   groupId: group.wa_group_id,
-                  action: "announcement" // Somente admins podem enviar
+                  action: "announcement"
                 }
               });
-              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao fechar grupo');
+              if (result.error || !result.data?.success) {
+                const errorMsg = result.data?.error || 'Erro ao fechar grupo';
+                throw new Error(errorMsg.includes('not-authorized') ? 'Você não tem permissão de admin neste grupo' : errorMsg);
+              }
               
-              // Atualizar status no banco
               await supabase
                 .from('groups')
                 .update({ status: 'closed' })
@@ -788,12 +814,14 @@ export default function Groups() {
                 body: { 
                   instanceName: instanceName,
                   groupId: group.wa_group_id,
-                  action: "not_announcement" // Todos podem enviar
+                  action: "not_announcement"
                 }
               });
-              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao abrir grupo');
+              if (result.error || !result.data?.success) {
+                const errorMsg = result.data?.error || 'Erro ao abrir grupo';
+                throw new Error(errorMsg.includes('not-authorized') ? 'Você não tem permissão de admin neste grupo' : errorMsg);
+              }
               
-              // Atualizar status no banco
               await supabase
                 .from('groups')
                 .update({ status: 'open' })
@@ -812,9 +840,11 @@ export default function Groups() {
                   subject: groupName
                 }
               });
-              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar nome');
+              if (result.error || !result.data?.success) {
+                const errorMsg = result.data?.error || 'Erro ao alterar nome';
+                throw new Error(errorMsg.includes('not-authorized') ? 'Você não tem permissão de admin neste grupo' : errorMsg);
+              }
               
-              // Atualizar nome no banco
               await supabase
                 .from('groups')
                 .update({ name: groupName })
@@ -827,12 +857,10 @@ export default function Groups() {
                 throw new Error('Nenhuma foto selecionada');
               }
               
-              // Converter foto para base64
               const reader = new FileReader();
               const base64Image = await new Promise<string>((resolve, reject) => {
                 reader.onload = () => {
                   const base64 = reader.result as string;
-                  // Remover o prefixo data:image/...;base64,
                   const base64Data = base64.split(',')[1];
                   resolve(base64Data);
                 };
@@ -847,7 +875,10 @@ export default function Groups() {
                   image: base64Image
                 }
               });
-              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar foto');
+              if (result.error || !result.data?.success) {
+                const errorMsg = result.data?.error || 'Erro ao alterar foto';
+                throw new Error(errorMsg.includes('not-authorized') ? 'Você não tem permissão de admin neste grupo' : errorMsg);
+              }
               successCount++;
               break;
 
@@ -862,9 +893,11 @@ export default function Groups() {
                   description: description
                 }
               });
-              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar descrição');
+              if (result.error || !result.data?.success) {
+                const errorMsg = result.data?.error || 'Erro ao alterar descrição';
+                throw new Error(errorMsg.includes('not-authorized') ? 'Você não tem permissão de admin neste grupo' : errorMsg);
+              }
               
-              // Atualizar descrição no banco
               await supabase
                 .from('groups')
                 .update({ description: description })
@@ -877,21 +910,52 @@ export default function Groups() {
           }
 
         } catch (error) {
-          console.error(`Erro ao processar grupo ${group.name}:`, error);
+          const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+          console.error(`Erro ao processar grupo ${group.name}:`, errorMessage);
+          errorDetails.push(`${group.name}: ${errorMessage}`);
           errorCount++;
         }
       }
 
-      // Recarregar grupos
+      // Atualizar histórico
+      if (historyRecord) {
+        await supabase
+          .from('action_history')
+          .update({
+            status: errorCount === selectedGroupsData.length ? 'failed' : 'completed',
+            success_count: successCount,
+            error_count: errorCount,
+            error_message: errorDetails.length > 0 ? errorDetails.join(' | ') : null,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', historyRecord.id);
+      }
+
       await loadGroups();
 
-      toast({
-        title: successCount > 0 ? "Ação concluída!" : "Erro",
-        description: `${successCount} grupo(s) atualizado(s)${errorCount > 0 ? `, ${errorCount} falharam` : ''}`,
-        variant: errorCount > 0 && successCount === 0 ? "destructive" : "default"
-      });
+      if (errorDetails.length > 0) {
+        toast({
+          title: successCount > 0 ? "Ação parcialmente concluída" : "Erro",
+          description: (
+            <div className="space-y-1">
+              <p>{successCount} grupo(s) atualizado(s), {errorCount} falharam:</p>
+              <ul className="list-disc pl-4 text-xs">
+                {errorDetails.slice(0, 3).map((detail, i) => (
+                  <li key={i}>{detail}</li>
+                ))}
+                {errorDetails.length > 3 && <li>...e mais {errorDetails.length - 3}</li>}
+              </ul>
+            </div>
+          ),
+          variant: successCount === 0 ? "destructive" : "default"
+        });
+      } else {
+        toast({
+          title: "Ação concluída!",
+          description: `${successCount} grupo(s) atualizado(s) com sucesso`,
+        });
+      }
 
-      // Limpar formulário e fechar dialogs
       setGroupName("");
       setGroupPhoto(null);
       setDescription("");
@@ -902,6 +966,18 @@ export default function Groups() {
 
     } catch (error) {
       console.error('Erro ao executar ação em massa:', error);
+      
+      if (historyRecord) {
+        await supabase
+          .from('action_history')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Erro desconhecido',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', historyRecord.id);
+      }
+
       toast({
         variant: "destructive",
         title: "Erro",
