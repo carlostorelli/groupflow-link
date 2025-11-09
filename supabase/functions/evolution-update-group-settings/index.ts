@@ -43,20 +43,19 @@ serve(async (req) => {
       }
     }
 
-    // Endpoint para atualizar configurações do grupo
-    const url = `${evolutionApiUrl}/group/updateGroupSetting/${encodeURIComponent(instanceName)}`;
+    // Endpoint para atualizar configurações do grupo - NOTE: groupJid como query parameter
+    const url = `${evolutionApiUrl}/group/updateSetting/${encodeURIComponent(instanceName)}?groupJid=${encodeURIComponent(groupId)}`;
     
     console.log(`📡 Chamando Evolution API: ${url}`);
 
     const payload = {
-      groupJid: groupId,
       action: action // "announcement" ou "not_announcement"
     };
 
     console.log(`📦 Payload:`, payload);
 
     const response = await fetch(url, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': evolutionApiKey,

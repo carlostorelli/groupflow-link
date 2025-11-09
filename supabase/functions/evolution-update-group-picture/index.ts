@@ -43,17 +43,16 @@ serve(async (req) => {
       }
     }
 
-    const url = `${evolutionApiUrl}/group/updateGroupPicture/${encodeURIComponent(instanceName)}`;
+    const url = `${evolutionApiUrl}/group/updateGroupPicture/${encodeURIComponent(instanceName)}?groupJid=${encodeURIComponent(groupId)}`;
     
     console.log(`📡 Chamando Evolution API: ${url}`);
 
     const payload = {
-      groupJid: groupId,
       image: image // base64 image
     };
 
     const response = await fetch(url, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': evolutionApiKey,
