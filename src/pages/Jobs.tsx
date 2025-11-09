@@ -73,6 +73,7 @@ export default function Jobs() {
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Carregar jobs do banco de dados
@@ -130,14 +131,7 @@ export default function Jobs() {
         title: "Ação agendada!",
         description: "A ação será executada no horário programado",
       });
-      // Resetar form
-      setActionType("");
-      setScheduledDate("");
-      setScheduledTime("");
-      setPayload("");
-      setMediaFile(null);
-      setSelectedGroups([]);
-      setDialogOpen(false);
+      resetForm();
     },
     onError: (error: any) => {
       toast({
@@ -147,6 +141,75 @@ export default function Jobs() {
       });
     },
   });
+
+  // Mutation para atualizar job existente
+  const updateJobMutation = useMutation({
+    mutationFn: async (updatedJob: { id: string; action_type: string; payload: any; scheduled_for: string }) => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .update({
+          action_type: updatedJob.action_type as any,
+          payload: updatedJob.payload,
+          scheduled_for: updatedJob.scheduled_for,
+        })
+        .eq('id', updatedJob.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast({
+        title: "Agendamento atualizado!",
+        description: "As alterações foram salvas com sucesso",
+      });
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erro ao atualizar",
+        description: error.message,
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setActionType("");
+    setScheduledDate("");
+    setScheduledTime("");
+    setPayload("");
+    setMediaFile(null);
+    setSelectedGroups([]);
+    setDialogOpen(false);
+    setEditingJobId(null);
+  };
+
+  const handleEditJob = (job: Job) => {
+    setEditingJobId(job.id);
+    setActionType(job.action_type);
+    setSelectedGroups(job.payload.groups || []);
+    
+    // Extrair o payload baseado no tipo de ação
+    if (job.action_type === 'send_message') {
+      setPayload(job.payload.message || '');
+    } else if (job.action_type === 'update_description') {
+      setPayload(job.payload.description || '');
+    } else if (job.action_type === 'change_group_name') {
+      setPayload(job.payload.name || '');
+    } else if (job.action_type === 'change_group_photo') {
+      setPayload(job.payload.image || '');
+    }
+
+    // Converter a data agendada de volta para o formato local
+    const scheduledDate = new Date(job.scheduled_for);
+    setScheduledDate(scheduledDate.toISOString().split('T')[0]);
+    setScheduledTime(scheduledDate.toTimeString().slice(0, 5));
+    
+    setDialogOpen(true);
+  };
 
   const toggleGroup = (groupId: string) => {
     setSelectedGroups(prev =>
@@ -205,11 +268,22 @@ export default function Jobs() {
     const localDateTime = new Date(`${scheduledDate}T${scheduledTime}:00`);
     const scheduledFor = localDateTime.toISOString();
 
-    createJobMutation.mutate({
-      action_type: actionType,
-      scheduled_for: scheduledFor,
-      payload: jobPayload,
-    });
+    if (editingJobId) {
+      // Atualizar job existente
+      updateJobMutation.mutate({
+        id: editingJobId,
+        action_type: actionType,
+        payload: jobPayload,
+        scheduled_for: scheduledFor,
+      });
+    } else {
+      // Criar novo job
+      createJobMutation.mutate({
+        action_type: actionType,
+        scheduled_for: scheduledFor,
+        payload: jobPayload,
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -292,15 +366,19 @@ export default function Jobs() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Agendar Nova Ação</DialogTitle>
+              <DialogTitle>
+                {editingJobId ? 'Editar Agendamento' : 'Agendar Nova Ação'}
+              </DialogTitle>
               <DialogDescription>
-                Configure uma ação para ser executada em uma data e hora específicas
+                {editingJobId 
+                  ? 'Atualize os dados do agendamento' 
+                  : 'Configure uma ação para ser executada em uma data e hora específicas'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="action-type">Tipo de Ação</Label>
-                <Select value={actionType} onValueChange={setActionType}>
+                <Select value={actionType} onValueChange={(value) => setActionType(value)}>
                   <SelectTrigger id="action-type">
                     <SelectValue placeholder="Selecione uma ação" />
                   </SelectTrigger>
@@ -487,10 +565,12 @@ export default function Jobs() {
               <Button 
                 onClick={handleScheduleJob} 
                 className="w-full"
-                disabled={createJobMutation.isPending}
+                disabled={createJobMutation.isPending || updateJobMutation.isPending}
               >
                 <Calendar className="mr-2 h-4 w-4" />
-                {createJobMutation.isPending ? 'Agendando...' : 'Agendar Ação'}
+                {editingJobId 
+                  ? (updateJobMutation.isPending ? 'Salvando...' : 'Salvar Alterações')
+                  : (createJobMutation.isPending ? 'Agendando...' : 'Agendar Ação')}
               </Button>
             </div>
           </DialogContent>
@@ -547,8 +627,13 @@ export default function Jobs() {
                     </TableCell>
                     <TableCell>{getStatusBadge(job.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Detalhes
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditJob(job)}
+                        disabled={job.status !== 'pending'}
+                      >
+                        Editar
                       </Button>
                     </TableCell>
                   </TableRow>

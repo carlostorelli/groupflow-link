@@ -108,7 +108,14 @@ Deno.serve(async (req) => {
                 });
 
                 if (participantsData?.participants) {
-                  mentions = participantsData.participants.map((p: any) => p.id);
+                  // Extrair apenas os números (remover @s.whatsapp.net) e remover duplicatas
+                  const phoneNumbers = participantsData.participants.map((p: any) => {
+                    const phoneNumber = p.id.split('@')[0];
+                    return phoneNumber;
+                  }) as string[];
+                  // Remover duplicatas
+                  mentions = Array.from(new Set(phoneNumbers));
+                  console.log(`📢 ${mentions.length} menções únicas processadas`);
                 }
               }
 
