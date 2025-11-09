@@ -110,8 +110,14 @@ serve(async (req) => {
     };
 
     // Adicionar menções se fornecidas
+    // A Evolution API espera o campo "mentioned" com array de JIDs
     if (mentions && mentions.length > 0) {
-      payload.mentions = mentions;
+      payload.options = {
+        delay: 1200,
+      };
+      payload.mentioned = mentions;
+      
+      console.log(`📢 Incluindo ${mentions.length} menções no payload`);
     }
 
     // Enviar mensagem via Evolution API

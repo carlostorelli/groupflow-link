@@ -320,15 +320,10 @@ export default function Groups() {
     }
 
     // Processar menções
-    let processedMessage = message;
-    let mentions: string[] = [];
-
-    // Se contém @todos, buscar todos os membros dos grupos
-    if (message.includes('@todos')) {
-      // A Evolution API vai mencionar todos automaticamente se não passar o array de mentions
-      processedMessage = message.replace('@todos', '');
-      mentions = []; // Vazio = menciona todos
-    }
+    const processedMessage = message;
+    const hasMentionAll = message.includes('@todos');
+    
+    console.log('💬 Mensagem contém @todos?', hasMentionAll);
 
     // Buscar instância
     const { data: instances } = await supabase
@@ -441,12 +436,54 @@ export default function Groups() {
     // Enviar para cada grupo
     for (const group of selectedGroupsData) {
       try {
+        let mentions: string[] | undefined = undefined;
+        
+        // Se a mensagem contém @todos, buscar participantes do grupo
+        if (hasMentionAll) {
+          console.log(`🔍 Buscando participantes do grupo: ${group.name}`);
+          
+          const { data: participantsData, error: participantsError } = await supabase.functions.invoke(
+            'evolution-fetch-group-participants',
+            {
+              body: {
+                instanceName,
+                groupId: group.wa_group_id,
+              }
+            }
+          );
+
+          if (participantsError) {
+            console.error('❌ Erro ao buscar participantes:', participantsError);
+            toast({
+              variant: "destructive",
+              title: `Erro no grupo ${group.name}`,
+              description: "Não foi possível buscar os participantes para menção @todos. A mensagem não será enviada.",
+            });
+            errorCount++;
+            continue; // Pular para o próximo grupo
+          }
+
+          if (!participantsData?.success || !participantsData?.participants || participantsData.participants.length === 0) {
+            console.warn('⚠️ Nenhum participante encontrado:', participantsData?.error);
+            toast({
+              variant: "destructive",
+              title: `Aviso para ${group.name}`,
+              description: participantsData?.error || "Grupo vazio ou sem permissão para acessar participantes. A menção @todos não funcionará.",
+            });
+            errorCount++;
+            continue; // Pular para o próximo grupo
+          }
+
+          mentions = participantsData.participants;
+          console.log(`✅ ${mentions.length} participantes encontrados para menção`);
+        }
+        
         const { data, error } = await supabase.functions.invoke('evolution-send-message', {
           body: {
             instanceName,
             groupId: group.wa_group_id,
             message: processedMessage,
-            mentions: mentions.length > 0 ? mentions : undefined,
+            mentions: mentions,
           }
         });
 
@@ -863,6 +900,16 @@ export default function Groups() {
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}
                   />
+                  
+                  {message.includes('@todos') && (
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <AtSign className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-blue-800">
+                        <strong>Menção @todos detectada!</strong> Os participantes de cada grupo serão buscados dinamicamente no momento do envio. Certifique-se de que você tem permissão para visualizar os membros dos grupos.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <Button
                     variant="outline"
                     size="sm"
