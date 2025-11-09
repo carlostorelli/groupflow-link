@@ -70,6 +70,10 @@ export default function Groups() {
   const [reconnectQrCode, setReconnectQrCode] = useState<string | null>(null);
   const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
+  const [changeNameDialogOpen, setChangeNameDialogOpen] = useState(false);
+  const [changePhotoDialogOpen, setChangePhotoDialogOpen] = useState(false);
+  const [changeDescriptionDialogOpen, setChangeDescriptionDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -701,10 +705,11 @@ export default function Groups() {
       description: `${successCount} enviadas com sucesso${errorCount > 0 ? `, ${errorCount} falharam` : ''}`,
     });
 
-    // Limpar formulário
+    // Limpar formulário e fechar dialog
     setMessage("");
     setMediaFiles([]);
     setSelectedGroups([]);
+    setSendMessageDialogOpen(false);
   };
 
   const handleBulkAction = async (action: string) => {
@@ -855,11 +860,14 @@ export default function Groups() {
         variant: errorCount > 0 && successCount === 0 ? "destructive" : "default"
       });
 
-      // Limpar formulário
+      // Limpar formulário e fechar dialogs
       setGroupName("");
       setGroupPhoto(null);
       setDescription("");
       setSelectedGroups([]);
+      setChangeNameDialogOpen(false);
+      setChangePhotoDialogOpen(false);
+      setChangeDescriptionDialogOpen(false);
 
     } catch (error) {
       console.error('Erro ao executar ação em massa:', error);
@@ -1102,7 +1110,7 @@ export default function Groups() {
             Abrir Grupos
           </Button>
 
-          <Dialog>
+          <Dialog open={changeNameDialogOpen} onOpenChange={setChangeNameDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Type className="mr-2 h-4 w-4" />
@@ -1136,7 +1144,7 @@ export default function Groups() {
             </DialogContent>
           </Dialog>
 
-          <Dialog>
+          <Dialog open={changePhotoDialogOpen} onOpenChange={setChangePhotoDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <ImageIcon className="mr-2 h-4 w-4" />
@@ -1179,7 +1187,7 @@ export default function Groups() {
             </DialogContent>
           </Dialog>
 
-          <Dialog>
+          <Dialog open={sendMessageDialogOpen} onOpenChange={setSendMessageDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <MessageSquare className="mr-2 h-4 w-4" />
@@ -1321,7 +1329,7 @@ export default function Groups() {
             </DialogContent>
           </Dialog>
 
-          <Dialog>
+          <Dialog open={changeDescriptionDialogOpen} onOpenChange={setChangeDescriptionDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <FileEdit className="mr-2 h-4 w-4" />
