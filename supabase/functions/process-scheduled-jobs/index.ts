@@ -180,10 +180,14 @@ Deno.serve(async (req) => {
               if (settingData?.error) throw new Error(settingData.error);
             } else if (job.action_type === 'change_group_name') {
               // Se autoNumber estiver ativo, adicionar numeração
-              const groupIndex = groupsData.findIndex(g => g.id === group.id);
-              const newName = job.payload.autoNumber 
-                ? `#${groupIndex + 1} ${job.payload.name || 'Novo Grupo'}`
-                : job.payload.name || '';
+              let newName;
+              if (job.payload.autoNumber) {
+                const groupIndex = groupsData.findIndex(g => g.id === group.id);
+                newName = `#${groupIndex + 1} ${job.payload.name || 'Novo Grupo'}`;
+              } else {
+                // Usar o nome que já vem do payload (já pode conter numeração)
+                newName = job.payload.name || '';
+              }
 
               const { data: nameData, error: nameError } = await supabase.functions.invoke('evolution-update-group-subject', {
                 body: {

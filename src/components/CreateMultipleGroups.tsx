@@ -25,6 +25,7 @@ export function CreateMultipleGroups() {
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // Carregar grupos disponíveis
@@ -99,25 +100,39 @@ export function CreateMultipleGroups() {
         const group = selectedGroupsData[i];
         const numberedGroupName = `#${i + 1} ${groupName}`;
         
-        // Job para mudar nome
+        // Job para mudar nome (com índice específico)
         jobsToCreate.push({
           user_id: user.id,
           action_type: 'change_group_name',
-          scheduled_for: new Date().toISOString(),
+          scheduled_for: new Date(Date.now() + (i * 8000)).toISOString(), // Espaçar 8s entre cada grupo
           payload: {
             groups: [group.id],
-            name: groupName,
-            autoNumber: true
+            name: numberedGroupName, // Já passa o nome completo com número
+            autoNumber: false // Não precisa mais auto-numerar
           },
           status: 'pending'
         });
+
+        // Job para mudar foto (se fornecida) - executar primeiro para evitar problemas
+        if (photoBase64) {
+          jobsToCreate.push({
+            user_id: user.id,
+            action_type: 'change_group_photo',
+            scheduled_for: new Date(Date.now() + (i * 8000) + 2000).toISOString(),
+            payload: {
+              groups: [group.id],
+              image: photoBase64
+            },
+            status: 'pending'
+          });
+        }
 
         // Job para mudar descrição (se fornecida)
         if (description.trim()) {
           jobsToCreate.push({
             user_id: user.id,
             action_type: 'update_description',
-            scheduled_for: new Date(Date.now() + 2000).toISOString(),
+            scheduled_for: new Date(Date.now() + (i * 8000) + 4000).toISOString(),
             payload: {
               groups: [group.id],
               description: description
@@ -130,26 +145,12 @@ export function CreateMultipleGroups() {
         jobsToCreate.push({
           user_id: user.id,
           action_type: status === 'closed' ? 'close_groups' : 'open_groups',
-          scheduled_for: new Date(Date.now() + 4000).toISOString(),
+          scheduled_for: new Date(Date.now() + (i * 8000) + 6000).toISOString(),
           payload: {
             groups: [group.id]
           },
           status: 'pending'
         });
-
-        // Job para mudar foto (se fornecida)
-        if (photoBase64) {
-          jobsToCreate.push({
-            user_id: user.id,
-            action_type: 'change_group_photo',
-            scheduled_for: new Date(Date.now() + 6000).toISOString(),
-            payload: {
-              groups: [group.id],
-              image: photoBase64
-            },
-            status: 'pending'
-          });
-        }
       }
 
       const { error } = await supabase
@@ -163,12 +164,13 @@ export function CreateMultipleGroups() {
         description: `${selectedGroups.length} grupo(s) serão configurados em instantes`,
       });
 
-      // Resetar form
+      // Resetar form e fechar dialog
       setSelectedGroups([]);
       setGroupName("Grupo");
       setDescription("");
       setStatus("open");
       setGroupPhoto(null);
+      setDialogOpen(false);
 
     } catch (error: any) {
       console.error('Erro ao configurar grupos:', error);
@@ -181,7 +183,7 @@ export function CreateMultipleGroups() {
   };
 
   return (
-    <Dialog>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
