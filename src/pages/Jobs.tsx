@@ -54,6 +54,7 @@ interface Job {
   scheduled_for: string;
   status: string;
   payload: any;
+  error_message?: string | null;
 }
 
 interface Group {
@@ -286,16 +287,23 @@ export default function Jobs() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, errorMessage?: string | null) => {
     const variants: Record<string, { label: string; className: string }> = {
-      pending: { label: "Pendente", className: "bg-primary" },
+      pending: { label: "Aguardando", className: "bg-primary" },
       running: { label: "Executando", className: "bg-gradient-primary" },
       done: { label: "Concluído", className: "bg-gradient-success" },
-      failed: { label: "Falhou", className: "bg-destructive" },
+      failed: { label: "Erro", className: "bg-destructive" },
     };
 
     const variant = variants[status] || variants.pending;
-    return <Badge className={variant.className}>{variant.label}</Badge>;
+    return (
+      <div className="space-y-1">
+        <Badge className={variant.className}>{variant.label}</Badge>
+        {status === 'failed' && errorMessage && (
+          <p className="text-xs text-destructive">{errorMessage}</p>
+        )}
+      </div>
+    );
   };
 
   const getActionLabel = (action: string) => {
@@ -625,13 +633,12 @@ export default function Jobs() {
                         {new Date(job.scheduled_for).toLocaleString('pt-BR')}
                       </div>
                     </TableCell>
-                    <TableCell>{getStatusBadge(job.status)}</TableCell>
+                    <TableCell>{getStatusBadge(job.status, job.error_message)}</TableCell>
                     <TableCell className="text-right">
                       <Button 
                         variant="ghost" 
                         size="sm"
                         onClick={() => handleEditJob(job)}
-                        disabled={job.status !== 'pending'}
                       >
                         Editar
                       </Button>
