@@ -489,6 +489,14 @@ export default function Jobs() {
                       onChange={(e) => setPayload(e.target.value)}
                       rows={4}
                     />
+                    {payload.includes('@todos') && (
+                      <div className="flex items-start gap-2 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                        <AtSign className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <p className="text-sm text-primary">
+                          <strong>Menção @todos detectada!</strong> Os participantes de cada grupo serão buscados automaticamente no momento do envio. Certifique-se de que você tem permissão para visualizar os membros dos grupos.
+                        </p>
+                      </div>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
