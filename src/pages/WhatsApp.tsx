@@ -367,20 +367,38 @@ export default function WhatsApp() {
         }
         
         // Salvar no banco com dados corretos
-        const { error: insertError } = await supabase
-          .from('groups')
-          .upsert({
-            user_id: user.id,
-            instance_id: instanceId,
-            wa_group_id: group.id,
-            name: group.subject || 'Sem nome',
-            description: group.desc || null,
-            members_count: group.size || 0,
-            member_limit: 1024,
-            status: groupStatus,
-          } as any, {
-            onConflict: 'wa_group_id,user_id'
-          });
+        let insertError;
+        
+        if (existingGroup) {
+          // Atualizar grupo existente
+          const { error } = await supabase
+            .from('groups')
+            .update({
+              instance_id: instanceId,
+              name: group.subject || 'Sem nome',
+              description: group.desc || null,
+              members_count: group.size || 0,
+              status: groupStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingGroup.id);
+          insertError = error;
+        } else {
+          // Inserir novo grupo
+          const { error } = await supabase
+            .from('groups')
+            .insert({
+              user_id: user.id,
+              instance_id: instanceId,
+              wa_group_id: group.id,
+              name: group.subject || 'Sem nome',
+              description: group.desc || null,
+              members_count: group.size || 0,
+              member_limit: 1024,
+              status: groupStatus,
+            });
+          insertError = error;
+        }
 
         if (insertError) {
           console.error('Erro ao salvar grupo:', insertError);
