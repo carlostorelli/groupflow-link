@@ -159,8 +159,8 @@ export function CreateMultipleGroups() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="open">🔓 Aberto - Qualquer pessoa pode entrar</SelectItem>
-                <SelectItem value="closed">🔒 Fechado - Apenas com convite</SelectItem>
+                <SelectItem value="open">🔓 Aberto - Todos podem comentar</SelectItem>
+                <SelectItem value="closed">🔒 Fechado - Apenas admins podem escrever</SelectItem>
               </SelectContent>
             </Select>
           </div>
