@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -42,7 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -389,6 +390,16 @@ export default function Jobs() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Disclaimer sobre ações administrativas */}
+      <Alert variant="warning">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>ATENÇÃO</AlertTitle>
+        <AlertDescription>
+          Fechar grupos, Abrir grupos, Alterar nome, Alterar foto e Alterar descrição{" "}
+          <strong>só funcionam em grupos ao qual você é administrador, caso contrário dará erro!</strong>
+        </AlertDescription>
+      </Alert>
 
       <Card className="shadow-card">
         <CardHeader>
