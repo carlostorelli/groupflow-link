@@ -17,6 +17,8 @@ serve(async (req) => {
       throw new Error('Nome da instância é obrigatório');
     }
 
+    console.log('🔄 Tentando reconectar instância:', instanceName);
+
     // Buscar configurações da Evolution API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -39,40 +41,34 @@ serve(async (req) => {
       throw new Error('Configurações da Evolution API não encontradas. Configure no painel de Admin.');
     }
 
-    // Primeiro, verificar se a instância existe na Evolution API
-    const checkResponse = await fetch(`${apiUrl}/instance/fetchInstances?instanceName=${instanceName}`, {
-      headers: { 'apikey': apiKey },
-    });
+    console.log('✅ Configurações carregadas. Tentando buscar QR code...');
 
-    if (!checkResponse.ok) {
-      throw new Error('Instância não encontrada na Evolution API');
-    }
-
-    const instances = await checkResponse.json();
-    const instance = instances.find((inst: any) => inst.instance?.instanceName === instanceName);
-
-    if (!instance) {
-      throw new Error('Instância não encontrada na Evolution API');
-    }
-
-    // Tentar reconectar e buscar QR code
+    // Tentar buscar o QR code diretamente (a Evolution API retorna QR se desconectado)
     const qrResponse = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
       method: 'GET',
       headers: { 'apikey': apiKey },
     });
 
+    console.log('📡 Resposta da Evolution API:', qrResponse.status);
+
     if (!qrResponse.ok) {
-      const errorData = await qrResponse.json().catch(() => ({}));
-      console.error('Erro ao buscar QR code:', errorData);
-      throw new Error('Erro ao buscar QR code da instância');
+      const errorText = await qrResponse.text();
+      console.error('❌ Erro da Evolution API:', errorText);
+      
+      // Se retornou 404, a instância não existe mais
+      if (qrResponse.status === 404) {
+        throw new Error('Instância não existe mais na Evolution API. Crie uma nova conexão na página WhatsApp.');
+      }
+      
+      throw new Error(`Erro ao buscar QR code: ${errorText}`);
     }
 
     const qrData = await qrResponse.json();
+    console.log('✅ QR Code obtido com sucesso');
 
     return new Response(
       JSON.stringify({
         success: true,
-        instance: instance.instance,
         qrcode: qrData.qrcode || qrData,
       }),
       { 
