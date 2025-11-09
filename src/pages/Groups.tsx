@@ -78,6 +78,43 @@ export default function Groups() {
     checkConnectionStatus();
   }, []);
 
+  // Listener de realtime para atualizar status dos grupos automaticamente
+  useEffect(() => {
+    const channel = supabase
+      .channel('groups-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'groups'
+        },
+        (payload) => {
+          console.log('🔄 Mudança detectada nos grupos:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            // Adicionar novo grupo
+            setGroups(prev => [payload.new as Group, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            // Atualizar grupo existente
+            setGroups(prev => 
+              prev.map(group => 
+                group.id === payload.new.id ? (payload.new as Group) : group
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            // Remover grupo
+            setGroups(prev => prev.filter(group => group.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const handleReconnect = async () => {
     if (!instanceName) {
       toast({
