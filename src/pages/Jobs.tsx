@@ -294,10 +294,10 @@ export default function Jobs() {
 
   const getStatusBadge = (status: string, errorMessage?: string | null) => {
     const variants: Record<string, { label: string; className: string }> = {
-      pending: { label: "Aguardando", className: "bg-primary" },
-      running: { label: "Executando", className: "bg-gradient-primary" },
-      done: { label: "Concluído", className: "bg-gradient-success" },
-      failed: { label: "Erro", className: "bg-destructive" },
+      pending: { label: "Aguardando", className: "bg-primary text-primary-foreground" },
+      running: { label: "Executando", className: "bg-secondary text-secondary-foreground" },
+      done: { label: "Concluído", className: "bg-green-600 text-white dark:bg-green-700" },
+      failed: { label: "Erro", className: "bg-destructive text-destructive-foreground" },
     };
 
     const variant = variants[status] || variants.pending;
