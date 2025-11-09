@@ -293,17 +293,17 @@ export default function Jobs() {
   };
 
   const getStatusBadge = (status: string, errorMessage?: string | null) => {
-    const variants: Record<string, { label: string; className: string }> = {
-      pending: { label: "Aguardando", className: "bg-primary text-primary-foreground" },
-      running: { label: "Executando", className: "bg-secondary text-secondary-foreground" },
-      done: { label: "Concluído", className: "bg-green-600 text-white dark:bg-green-700" },
-      failed: { label: "Erro", className: "bg-destructive text-destructive-foreground" },
+    const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "success" }> = {
+      pending: { label: "Aguardando", variant: "default" },
+      running: { label: "Executando", variant: "secondary" },
+      done: { label: "Concluído", variant: "success" },
+      failed: { label: "Erro", variant: "destructive" },
     };
 
-    const variant = variants[status] || variants.pending;
+    const config = statusConfig[status] || statusConfig.pending;
     return (
       <div className="space-y-1">
-        <Badge className={variant.className}>{variant.label}</Badge>
+        <Badge variant={config.variant}>{config.label}</Badge>
         {status === 'failed' && errorMessage && (
           <p className="text-xs text-destructive">{errorMessage}</p>
         )}
