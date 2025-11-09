@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -17,26 +19,40 @@ import { Plus, X, Upload, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function CreateMultipleGroups() {
-  const [quantity, setQuantity] = useState("1");
   const [groupName, setGroupName] = useState("Grupo");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"open" | "closed">("open");
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
-  const [admins, setAdmins] = useState<string[]>([""]);
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const { toast } = useToast();
 
-  const addAdmin = () => {
-    setAdmins([...admins, ""]);
+  // Carregar grupos disponíveis
+  useEffect(() => {
+    loadAvailableGroups();
+  }, []);
+
+  const loadAvailableGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, name, wa_group_id, is_admin')
+        .eq('is_admin', true)
+        .order('name');
+
+      if (error) throw error;
+      setAvailableGroups(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar grupos:', error);
+    }
   };
 
-  const removeAdmin = (index: number) => {
-    setAdmins(admins.filter((_, i) => i !== index));
-  };
-
-  const updateAdmin = (index: number, value: string) => {
-    const newAdmins = [...admins];
-    newAdmins[index] = value;
-    setAdmins(newAdmins);
+  const toggleGroup = (groupId: string) => {
+    setSelectedGroups(prev =>
+      prev.includes(groupId)
+        ? prev.filter(id => id !== groupId)
+        : [...prev, groupId]
+    );
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,40 +66,118 @@ export function CreateMultipleGroups() {
     }
   };
 
-  const handleCreate = () => {
-    const qty = parseInt(quantity);
-    if (isNaN(qty) || qty < 1 || qty > 100) {
+  const handleCreate = async () => {
+    if (selectedGroups.length === 0) {
       toast({
         variant: "destructive",
-        title: "Quantidade inválida",
-        description: "Insira um número entre 1 e 100",
+        title: "Nenhum grupo selecionado",
+        description: "Selecione pelo menos um grupo para aplicar as configurações",
       });
       return;
     }
 
-    const validAdmins = admins.filter(admin => admin.trim() !== "");
-    if (validAdmins.length === 0) {
+    try {
+      // Converter foto para base64 se existir
+      let photoBase64 = null;
+      if (groupPhoto) {
+        const reader = new FileReader();
+        photoBase64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(groupPhoto);
+        });
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Criar jobs para cada grupo selecionado
+      const jobsToCreate = [];
+      const selectedGroupsData = availableGroups.filter(g => selectedGroups.includes(g.id));
+
+      for (let i = 0; i < selectedGroupsData.length; i++) {
+        const group = selectedGroupsData[i];
+        const numberedGroupName = `#${i + 1} ${groupName}`;
+        
+        // Job para mudar nome
+        jobsToCreate.push({
+          user_id: user.id,
+          action_type: 'change_group_name',
+          scheduled_for: new Date().toISOString(),
+          payload: {
+            groups: [group.id],
+            name: groupName,
+            autoNumber: true
+          },
+          status: 'pending'
+        });
+
+        // Job para mudar descrição (se fornecida)
+        if (description.trim()) {
+          jobsToCreate.push({
+            user_id: user.id,
+            action_type: 'update_description',
+            scheduled_for: new Date(Date.now() + 2000).toISOString(),
+            payload: {
+              groups: [group.id],
+              description: description
+            },
+            status: 'pending'
+          });
+        }
+
+        // Job para mudar status
+        jobsToCreate.push({
+          user_id: user.id,
+          action_type: status === 'closed' ? 'close_groups' : 'open_groups',
+          scheduled_for: new Date(Date.now() + 4000).toISOString(),
+          payload: {
+            groups: [group.id]
+          },
+          status: 'pending'
+        });
+
+        // Job para mudar foto (se fornecida)
+        if (photoBase64) {
+          jobsToCreate.push({
+            user_id: user.id,
+            action_type: 'change_group_photo',
+            scheduled_for: new Date(Date.now() + 6000).toISOString(),
+            payload: {
+              groups: [group.id],
+              image: photoBase64
+            },
+            status: 'pending'
+          });
+        }
+      }
+
+      const { error } = await supabase
+        .from('jobs')
+        .insert(jobsToCreate);
+
+      if (error) throw error;
+
+      toast({
+        title: "Configurações agendadas!",
+        description: `${selectedGroups.length} grupo(s) serão configurados em instantes`,
+      });
+
+      // Resetar form
+      setSelectedGroups([]);
+      setGroupName("Grupo");
+      setDescription("");
+      setStatus("open");
+      setGroupPhoto(null);
+
+    } catch (error: any) {
+      console.error('Erro ao configurar grupos:', error);
       toast({
         variant: "destructive",
-        title: "Adicione ao menos um admin",
-        description: "Insira pelo menos um número de admin",
+        title: "Erro ao configurar grupos",
+        description: error.message || "Tente novamente",
       });
-      return;
     }
-
-    if (validAdmins.length < 2) {
-      toast({
-        variant: "destructive",
-        title: "⚠️ Atenção: Segurança",
-        description: "Por segurança, recomendamos ter pelo menos 2 admins em cada grupo",
-      });
-      return;
-    }
-
-    toast({
-      title: "Grupos criados!",
-      description: `${qty} grupo(s) criado(s): #1 ${groupName}, #2 ${groupName}, #3 ${groupName}...`,
-    });
   };
 
   return (
@@ -91,37 +185,51 @@ export function CreateMultipleGroups() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Criar Vários Grupos
+          Configurar Vários Grupos
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Criar Múltiplos Grupos</DialogTitle>
+          <DialogTitle>Configurar Múltiplos Grupos</DialogTitle>
           <DialogDescription>
-            Crie vários grupos de uma vez com configurações personalizadas
+            Aplique configurações em vários grupos de uma vez
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>⚠️ Importante:</strong> Por segurança, adicione pelo menos <strong>2 admins</strong> em cada grupo para evitar perda de acesso.
+              <strong>ℹ️ Como funciona:</strong> Selecione os grupos existentes onde você é admin e aplique as configurações desejadas (nome numerado, descrição, status e foto).
             </AlertDescription>
           </Alert>
 
           <div className="space-y-2">
-            <Label htmlFor="quantity">Quantidade de Grupos</Label>
-            <Input
-              id="quantity"
-              type="number"
-              min="1"
-              max="100"
-              placeholder="Ex: 5"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
+            <Label>Selecionar Grupos (você é admin)</Label>
+            <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+              {availableGroups.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum grupo disponível. Sincronize seus grupos primeiro.
+                </p>
+              ) : (
+                availableGroups.map((group) => (
+                  <div key={group.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`group-${group.id}`}
+                      checked={selectedGroups.includes(group.id)}
+                      onCheckedChange={() => toggleGroup(group.id)}
+                    />
+                    <Label
+                      htmlFor={`group-${group.id}`}
+                      className="text-sm font-normal cursor-pointer flex-1"
+                    >
+                      {group.name}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Os grupos serão nomeados como: #1 {groupName}, #2 {groupName}, #3 {groupName}...
+              {selectedGroups.length} grupo(s) selecionado(s) - Receberão numeração: #1, #2, #3...
             </p>
           </div>
 
@@ -134,7 +242,7 @@ export function CreateMultipleGroups() {
               onChange={(e) => setGroupName(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Este será o nome base. Cada grupo receberá um número no final.
+              Os grupos serão renomeados para: #1 {groupName}, #2 {groupName}, #3 {groupName}...
             </p>
           </div>
 
@@ -193,50 +301,12 @@ export function CreateMultipleGroups() {
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Esta foto será aplicada a todos os grupos criados
+              Esta foto será aplicada a todos os grupos selecionados
             </p>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Números dos Admins (mínimo 2)</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addAdmin}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {admins.map((admin, index) => (
-                <div key={index} className="flex gap-2">
-                  <Input
-                    placeholder="Ex: +5511999999999"
-                    value={admin}
-                    onChange={(e) => updateAdmin(index, e.target.value)}
-                  />
-                  {admins.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeAdmin(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Adicione os números dos admins (com código do país). Recomendamos pelo menos 2 admins por segurança.
-            </p>
-          </div>
-
-          <Button onClick={handleCreate} className="w-full">
-            Criar {quantity || "0"} Grupo(s)
+          <Button onClick={handleCreate} className="w-full" disabled={selectedGroups.length === 0}>
+            Configurar {selectedGroups.length || "0"} Grupo(s)
           </Button>
         </div>
       </DialogContent>
