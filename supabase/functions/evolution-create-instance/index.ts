@@ -41,14 +41,18 @@ serve(async (req) => {
 
     // Tentar deletar instância antiga primeiro (caso exista)
     try {
-      await fetch(`${apiUrl}/instance/delete/${instanceName}`, {
+      const deleteResponse = await fetch(`${apiUrl}/instance/delete/${instanceName}`, {
         method: 'DELETE',
         headers: { 'apikey': apiKey },
       });
-      console.log('Instância antiga deletada');
+      console.log('✅ Instância antiga deletada:', deleteResponse.status);
+      // Aguardar 3 segundos para garantir que foi deletada
+      await new Promise(resolve => setTimeout(resolve, 3000));
     } catch (e) {
-      console.log('Nenhuma instância antiga para deletar');
+      console.log('ℹ️ Nenhuma instância antiga para deletar:', e);
     }
+
+    console.log('🔄 Criando nova instância:', instanceName);
 
     // Criar instância na Evolution API
     const evolutionResponse = await fetch(`${apiUrl}/instance/create`, {
@@ -64,9 +68,18 @@ serve(async (req) => {
       }),
     });
 
+    console.log('📡 Resposta da Evolution API:', evolutionResponse.status);
+
     if (!evolutionResponse.ok) {
-      const errorData = await evolutionResponse.json().catch(() => ({}));
-      console.error('Erro na Evolution API:', errorData);
+      const errorText = await evolutionResponse.text();
+      console.error('❌ Erro na Evolution API:', evolutionResponse.status, errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Erro na Evolution API (${evolutionResponse.status}): ${errorText}`);
+      }
       
       // Se o erro for de nome duplicado, tentar reconectar
       if (errorData?.response?.message?.[0]?.includes('already in use')) {
@@ -77,6 +90,7 @@ serve(async (req) => {
     }
 
     const evolutionData = await evolutionResponse.json();
+    console.log('✅ Instância criada com sucesso');
 
     return new Response(
       JSON.stringify({
