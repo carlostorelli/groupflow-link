@@ -100,19 +100,21 @@ Deno.serve(async (req) => {
               
               if (message.includes('@todos')) {
                 // Buscar todos os participantes do grupo
-                const { data: participantsData } = await supabase.functions.invoke('evolution-fetch-group-participants', {
+                const { data: participantsData, error: participantsError } = await supabase.functions.invoke('evolution-fetch-group-participants', {
                   body: {
                     instanceName,
                     groupId: group.wa_group_id,
                   }
                 });
 
-                if (participantsData?.participants) {
+                if (participantsError) {
+                  console.error(`❌ Erro ao buscar participantes:`, participantsError);
+                } else if (participantsData?.participants && Array.isArray(participantsData.participants)) {
                   // Extrair apenas os números (remover @s.whatsapp.net) e remover duplicatas
-                  const phoneNumbers = participantsData.participants.map((p: any) => {
-                    const phoneNumber = p.id.split('@')[0];
-                    return phoneNumber;
-                  }) as string[];
+                  const phoneNumbers = participantsData.participants
+                    .filter((p: any) => p && typeof p === 'string' && p.includes('@'))
+                    .map((p: string) => p.split('@')[0]);
+                  
                   // Remover duplicatas
                   mentions = Array.from(new Set(phoneNumbers));
                   console.log(`📢 ${mentions.length} menções únicas processadas`);
