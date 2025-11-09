@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
               // Se autoNumber estiver ativo, adicionar numeração
               const groupIndex = groupsData.findIndex(g => g.id === group.id);
               const newName = job.payload.autoNumber 
-                ? `${job.payload.name || 'Novo Grupo'} #${groupIndex + 1}`
+                ? `#${groupIndex + 1} ${job.payload.name || 'Novo Grupo'}`
                 : job.payload.name || '';
 
               const { data: nameData, error: nameError } = await supabase.functions.invoke('evolution-update-group-subject', {

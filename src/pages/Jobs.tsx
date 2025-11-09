@@ -564,7 +564,7 @@ export default function Jobs() {
                           Numerar automaticamente
                         </Label>
                         <p className="text-sm text-muted-foreground">
-                          Adiciona numeração sequencial aos grupos (ex: Grupo #1, Grupo #2)
+                          Adiciona numeração sequencial aos grupos (ex: #1 Grupo, #2 Grupo)
                         </p>
                       </div>
                     </div>
@@ -581,13 +581,13 @@ export default function Jobs() {
                     </Label>
                     <Input
                       id="payload"
-                      placeholder={autoNumberGroups ? "Ex: Novo Grupo (será Novo Grupo #1, #2...)" : "Digite o novo nome..."}
+                      placeholder={autoNumberGroups ? "Ex: Novo Grupo (será #1 Novo Grupo, #2 Novo Grupo...)" : "Digite o novo nome..."}
                       value={payload}
                       onChange={(e) => setPayload(e.target.value)}
                     />
                     {autoNumberGroups && (
                       <p className="text-xs text-muted-foreground">
-                        Preview: {payload || 'Novo Grupo'} #1, {payload || 'Novo Grupo'} #2, {payload || 'Novo Grupo'} #3...
+                        Preview: #1 {payload || 'Novo Grupo'}, #2 {payload || 'Novo Grupo'}, #3 {payload || 'Novo Grupo'}...
                       </p>
                     )}
                   </div>

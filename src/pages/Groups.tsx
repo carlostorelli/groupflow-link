@@ -838,7 +838,7 @@ export default function Groups() {
               
               // Se numeração automática estiver ativa, gerar nome numerado
               const newGroupName = autoNumberGroups 
-                ? `${groupName || 'Novo Grupo'} #${selectedGroupsData.indexOf(group) + 1}`
+                ? `#${selectedGroupsData.indexOf(group) + 1} ${groupName || 'Novo Grupo'}`
                 : groupName;
               
               result = await supabase.functions.invoke('evolution-update-group-subject', {
@@ -1249,7 +1249,7 @@ export default function Groups() {
                         Numerar automaticamente
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Adiciona numeração sequencial aos grupos (ex: Grupo #1, Grupo #2)
+                        Adiciona numeração sequencial aos grupos (ex: #1 Grupo, #2 Grupo)
                       </p>
                     </div>
                   </div>
@@ -1266,13 +1266,13 @@ export default function Groups() {
                   </Label>
                   <Input
                     id="groupName"
-                    placeholder={autoNumberGroups ? "Ex: Novo Grupo (será Novo Grupo #1, #2...)" : "Digite o novo nome..."}
+                    placeholder={autoNumberGroups ? "Ex: Novo Grupo (será #1 Novo Grupo, #2 Novo Grupo...)" : "Digite o novo nome..."}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                   />
                   {autoNumberGroups && (
                     <p className="text-xs text-muted-foreground">
-                      Preview: {groupName || 'Novo Grupo'} #1, {groupName || 'Novo Grupo'} #2, {groupName || 'Novo Grupo'} #3...
+                      Preview: #1 {groupName || 'Novo Grupo'}, #2 {groupName || 'Novo Grupo'}, #3 {groupName || 'Novo Grupo'}...
                     </p>
                   )}
                 </div>
