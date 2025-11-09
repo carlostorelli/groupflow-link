@@ -15,11 +15,32 @@ serve(async (req) => {
 
     console.log(`✏️ Atualizando nome do grupo`, { instanceName, groupId, subject });
 
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    // Buscar configurações das variáveis de ambiente ou do banco
+    let evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    let evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
 
+    // Se não encontrou nas variáveis de ambiente, buscar no banco
     if (!evolutionApiUrl || !evolutionApiKey) {
-      throw new Error('Evolution API não configurada');
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+      const settingsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/settings?key=in.(evolution_api_url,evolution_api_key)&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+        }
+      );
+
+      const settings = await settingsResponse.json();
+      evolutionApiUrl = settings.find((s: any) => s.key === 'evolution_api_url')?.value;
+      evolutionApiKey = settings.find((s: any) => s.key === 'evolution_api_key')?.value;
+
+      if (!evolutionApiUrl || !evolutionApiKey) {
+        throw new Error('Evolution API não configurada');
+      }
     }
 
     const url = `${evolutionApiUrl}/group/updateGroupSubject/${encodeURIComponent(instanceName)}`;
