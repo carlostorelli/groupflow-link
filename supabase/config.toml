@@ -88,6 +88,18 @@ verify_jwt = true
 [functions.evolution-fetch-group-participants]
 verify_jwt = true
 
+[functions.evolution-update-group-settings]
+verify_jwt = true
+
+[functions.evolution-update-group-subject]
+verify_jwt = true
+
+[functions.evolution-update-group-picture]
+verify_jwt = true
+
+[functions.evolution-update-group-description]
+verify_jwt = true
+
 [functions.extract-contacts]
 verify_jwt = true
 

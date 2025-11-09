@@ -528,7 +528,7 @@ export default function Groups() {
     setSelectedGroups([]);
   };
 
-  const handleBulkAction = (action: string) => {
+  const handleBulkAction = async (action: string) => {
     if (selectedGroups.length === 0) {
       toast({
         variant: "destructive",
@@ -538,10 +538,160 @@ export default function Groups() {
       return;
     }
 
-    toast({
-      title: "Ação executada",
-      description: `${action} aplicado em ${selectedGroups.length} grupo(s)`,
-    });
+    setLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      const selectedGroupsData = groups.filter((g) => selectedGroups.includes(g.id));
+
+      for (const group of selectedGroupsData) {
+        try {
+          let result;
+          
+          switch (action) {
+            case "Fechar grupos":
+              result = await supabase.functions.invoke('evolution-update-group-settings', {
+                body: { 
+                  instanceName: instanceName,
+                  groupId: group.wa_group_id,
+                  action: "announcement" // Somente admins podem enviar
+                }
+              });
+              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao fechar grupo');
+              
+              // Atualizar status no banco
+              await supabase
+                .from('groups')
+                .update({ status: 'closed' })
+                .eq('id', group.id);
+              successCount++;
+              break;
+
+            case "Abrir grupos":
+              result = await supabase.functions.invoke('evolution-update-group-settings', {
+                body: { 
+                  instanceName: instanceName,
+                  groupId: group.wa_group_id,
+                  action: "not_announcement" // Todos podem enviar
+                }
+              });
+              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao abrir grupo');
+              
+              // Atualizar status no banco
+              await supabase
+                .from('groups')
+                .update({ status: 'open' })
+                .eq('id', group.id);
+              successCount++;
+              break;
+
+            case "Alterar nome":
+              if (!groupName.trim()) {
+                throw new Error('Nome não pode estar vazio');
+              }
+              result = await supabase.functions.invoke('evolution-update-group-subject', {
+                body: { 
+                  instanceName: instanceName,
+                  groupId: group.wa_group_id,
+                  subject: groupName
+                }
+              });
+              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar nome');
+              
+              // Atualizar nome no banco
+              await supabase
+                .from('groups')
+                .update({ name: groupName })
+                .eq('id', group.id);
+              successCount++;
+              break;
+
+            case "Alterar foto":
+              if (!groupPhoto) {
+                throw new Error('Nenhuma foto selecionada');
+              }
+              
+              // Converter foto para base64
+              const reader = new FileReader();
+              const base64Image = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                  const base64 = reader.result as string;
+                  // Remover o prefixo data:image/...;base64,
+                  const base64Data = base64.split(',')[1];
+                  resolve(base64Data);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(groupPhoto);
+              });
+
+              result = await supabase.functions.invoke('evolution-update-group-picture', {
+                body: { 
+                  instanceName: instanceName,
+                  groupId: group.wa_group_id,
+                  image: base64Image
+                }
+              });
+              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar foto');
+              successCount++;
+              break;
+
+            case "Alterar descrição":
+              if (!description.trim()) {
+                throw new Error('Descrição não pode estar vazia');
+              }
+              result = await supabase.functions.invoke('evolution-update-group-description', {
+                body: { 
+                  instanceName: instanceName,
+                  groupId: group.wa_group_id,
+                  description: description
+                }
+              });
+              if (result.error || !result.data?.success) throw new Error(result.data?.error || 'Erro ao alterar descrição');
+              
+              // Atualizar descrição no banco
+              await supabase
+                .from('groups')
+                .update({ description: description })
+                .eq('id', group.id);
+              successCount++;
+              break;
+
+            default:
+              throw new Error('Ação não reconhecida');
+          }
+
+        } catch (error) {
+          console.error(`Erro ao processar grupo ${group.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Recarregar grupos
+      await loadGroups();
+
+      toast({
+        title: successCount > 0 ? "Ação concluída!" : "Erro",
+        description: `${successCount} grupo(s) atualizado(s)${errorCount > 0 ? `, ${errorCount} falharam` : ''}`,
+        variant: errorCount > 0 && successCount === 0 ? "destructive" : "default"
+      });
+
+      // Limpar formulário
+      setGroupName("");
+      setGroupPhoto(null);
+      setDescription("");
+      setSelectedGroups([]);
+
+    } catch (error) {
+      console.error('Erro ao executar ação em massa:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao executar ação",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEnhanceMessage = async () => {
