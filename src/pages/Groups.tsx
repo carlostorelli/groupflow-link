@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw, Hash } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock, Unlock, MessageSquare, FileEdit, Type, Image as ImageIcon, Sparkles, Upload } from "lucide-react";
@@ -75,6 +76,7 @@ export default function Groups() {
   const [changeNameDialogOpen, setChangeNameDialogOpen] = useState(false);
   const [changePhotoDialogOpen, setChangePhotoDialogOpen] = useState(false);
   const [changeDescriptionDialogOpen, setChangeDescriptionDialogOpen] = useState(false);
+  const [autoNumberGroups, setAutoNumberGroups] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -830,14 +832,20 @@ export default function Groups() {
               break;
 
             case "Alterar nome":
-              if (!groupName.trim()) {
+              if (!autoNumberGroups && !groupName.trim()) {
                 throw new Error('Nome não pode estar vazio');
               }
+              
+              // Se numeração automática estiver ativa, gerar nome numerado
+              const newGroupName = autoNumberGroups 
+                ? `${groupName || 'Novo Grupo'} #${selectedGroupsData.indexOf(group) + 1}`
+                : groupName;
+              
               result = await supabase.functions.invoke('evolution-update-group-subject', {
                 body: { 
                   instanceName: instanceName,
                   groupId: group.wa_group_id,
-                  subject: groupName
+                  subject: newGroupName
                 }
               });
               if (result.error || !result.data?.success) {
@@ -847,7 +855,7 @@ export default function Groups() {
               
               await supabase
                 .from('groups')
-                .update({ name: groupName })
+                .update({ name: newGroupName })
                 .eq('id', group.id);
               successCount++;
               break;
@@ -960,6 +968,7 @@ export default function Groups() {
       setGroupPhoto(null);
       setDescription("");
       setSelectedGroups([]);
+      setAutoNumberGroups(false);
       setChangeNameDialogOpen(false);
       setChangePhotoDialogOpen(false);
       setChangeDescriptionDialogOpen(false);
@@ -1232,18 +1241,45 @@ export default function Groups() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
+                <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+                  <div className="flex items-start space-x-3 flex-1">
+                    <Hash className="h-5 w-5 mt-0.5 text-primary" />
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-number" className="font-medium">
+                        Numerar automaticamente
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Adiciona numeração sequencial aos grupos (ex: Grupo #1, Grupo #2)
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="auto-number"
+                    checked={autoNumberGroups}
+                    onCheckedChange={setAutoNumberGroups}
+                  />
+                </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="groupName">Novo Nome</Label>
+                  <Label htmlFor="groupName">
+                    {autoNumberGroups ? 'Nome Base (opcional)' : 'Novo Nome'}
+                  </Label>
                   <Input
                     id="groupName"
-                    placeholder="Digite o novo nome..."
+                    placeholder={autoNumberGroups ? "Ex: Novo Grupo (será Novo Grupo #1, #2...)" : "Digite o novo nome..."}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                   />
+                  {autoNumberGroups && (
+                    <p className="text-xs text-muted-foreground">
+                      Preview: {groupName || 'Novo Grupo'} #1, {groupName || 'Novo Grupo'} #2, {groupName || 'Novo Grupo'} #3...
+                    </p>
+                  )}
                 </div>
                 <Button
                   className="w-full"
                   onClick={() => handleBulkAction("Alterar nome")}
+                  disabled={!autoNumberGroups && !groupName.trim()}
                 >
                   Atualizar Nome
                 </Button>

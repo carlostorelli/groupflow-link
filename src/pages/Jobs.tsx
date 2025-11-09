@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -44,7 +45,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +76,7 @@ export default function Jobs() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [autoNumberGroups, setAutoNumberGroups] = useState(false);
   const { toast } = useToast();
 
   // Carregar jobs do banco de dados
@@ -184,6 +186,7 @@ export default function Jobs() {
     setPayload("");
     setMediaFile(null);
     setSelectedGroups([]);
+    setAutoNumberGroups(false);
     setDialogOpen(false);
     setEditingJobId(null);
   };
@@ -200,6 +203,7 @@ export default function Jobs() {
       setPayload(job.payload.description || '');
     } else if (job.action_type === 'change_group_name') {
       setPayload(job.payload.name || '');
+      setAutoNumberGroups(job.payload.autoNumber || false);
     } else if (job.action_type === 'change_group_photo') {
       setPayload(job.payload.image || '');
     }
@@ -263,6 +267,7 @@ export default function Jobs() {
       jobPayload.description = payload;
     } else if (actionType === 'change_group_name') {
       jobPayload.name = payload;
+      jobPayload.autoNumber = autoNumberGroups;
     }
 
     // Combinar data e hora no timezone local
@@ -550,14 +555,42 @@ export default function Jobs() {
               )}
 
               {actionType === "change_group_name" && (
-                <div className="space-y-2">
-                  <Label htmlFor="payload">Novo Nome do Grupo</Label>
-                  <Input
-                    id="payload"
-                    placeholder="Digite o novo nome..."
-                    value={payload}
-                    onChange={(e) => setPayload(e.target.value)}
-                  />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+                    <div className="flex items-start space-x-3 flex-1">
+                      <Hash className="h-5 w-5 mt-0.5 text-primary" />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="auto-number-job" className="font-medium">
+                          Numerar automaticamente
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Adiciona numeração sequencial aos grupos (ex: Grupo #1, Grupo #2)
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id="auto-number-job"
+                      checked={autoNumberGroups}
+                      onCheckedChange={setAutoNumberGroups}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="payload">
+                      {autoNumberGroups ? 'Nome Base (opcional)' : 'Novo Nome do Grupo'}
+                    </Label>
+                    <Input
+                      id="payload"
+                      placeholder={autoNumberGroups ? "Ex: Novo Grupo (será Novo Grupo #1, #2...)" : "Digite o novo nome..."}
+                      value={payload}
+                      onChange={(e) => setPayload(e.target.value)}
+                    />
+                    {autoNumberGroups && (
+                      <p className="text-xs text-muted-foreground">
+                        Preview: {payload || 'Novo Grupo'} #1, {payload || 'Novo Grupo'} #2, {payload || 'Novo Grupo'} #3...
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 

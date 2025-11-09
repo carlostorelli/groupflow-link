@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
         const groupIds = job.payload.groups || [];
         const { data: groupsData } = await supabase
           .from('groups')
-          .select('wa_group_id, name, status, is_admin')
+          .select('id, wa_group_id, name, status, is_admin')
           .in('id', groupIds)
           .eq('user_id', job.user_id);
 
@@ -179,16 +179,28 @@ Deno.serve(async (req) => {
               if (settingError) throw settingError;
               if (settingData?.error) throw new Error(settingData.error);
             } else if (job.action_type === 'change_group_name') {
+              // Se autoNumber estiver ativo, adicionar numeração
+              const groupIndex = groupsData.findIndex(g => g.id === group.id);
+              const newName = job.payload.autoNumber 
+                ? `${job.payload.name || 'Novo Grupo'} #${groupIndex + 1}`
+                : job.payload.name || '';
+
               const { data: nameData, error: nameError } = await supabase.functions.invoke('evolution-update-group-subject', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
-                  subject: job.payload.name || '',
+                  subject: newName,
                 }
               });
 
               if (nameError) throw nameError;
               if (nameData?.error) throw new Error(nameData.error);
+
+              // Atualizar nome no banco
+              await supabase
+                .from('groups')
+                .update({ name: newName })
+                .eq('id', group.id);
             } else if (job.action_type === 'change_group_photo') {
               const { data: photoData, error: photoError } = await supabase.functions.invoke('evolution-update-group-picture', {
                 body: {
