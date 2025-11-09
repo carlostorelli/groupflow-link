@@ -91,6 +91,8 @@ Deno.serve(async (req) => {
         let successCount = 0;
         let errorCount = 0;
 
+        const groupErrors: string[] = [];
+        
         for (const group of groupsData) {
           try {
             if (job.action_type === 'send_message') {
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
                 }
               }
 
-              const { error: sendError } = await supabase.functions.invoke('evolution-send-message', {
+              const { data: sendData, error: sendError } = await supabase.functions.invoke('evolution-send-message', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -131,8 +133,9 @@ Deno.serve(async (req) => {
               });
 
               if (sendError) throw sendError;
+              if (sendData?.error) throw new Error(sendData.error);
             } else if (job.action_type === 'update_description') {
-              const { error: descError } = await supabase.functions.invoke('evolution-update-group-description', {
+              const { data: descData, error: descError } = await supabase.functions.invoke('evolution-update-group-description', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -141,8 +144,9 @@ Deno.serve(async (req) => {
               });
 
               if (descError) throw descError;
+              if (descData?.error) throw new Error(descData.error);
             } else if (job.action_type === 'close_groups') {
-              const { error: settingError } = await supabase.functions.invoke('evolution-update-group-settings', {
+              const { data: settingData, error: settingError } = await supabase.functions.invoke('evolution-update-group-settings', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -151,8 +155,9 @@ Deno.serve(async (req) => {
               });
 
               if (settingError) throw settingError;
+              if (settingData?.error) throw new Error(settingData.error);
             } else if (job.action_type === 'open_groups') {
-              const { error: settingError } = await supabase.functions.invoke('evolution-update-group-settings', {
+              const { data: settingData, error: settingError } = await supabase.functions.invoke('evolution-update-group-settings', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -161,8 +166,9 @@ Deno.serve(async (req) => {
               });
 
               if (settingError) throw settingError;
+              if (settingData?.error) throw new Error(settingData.error);
             } else if (job.action_type === 'change_group_name') {
-              const { error: nameError } = await supabase.functions.invoke('evolution-update-group-subject', {
+              const { data: nameData, error: nameError } = await supabase.functions.invoke('evolution-update-group-subject', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -171,8 +177,9 @@ Deno.serve(async (req) => {
               });
 
               if (nameError) throw nameError;
+              if (nameData?.error) throw new Error(nameData.error);
             } else if (job.action_type === 'change_group_photo') {
-              const { error: photoError } = await supabase.functions.invoke('evolution-update-group-picture', {
+              const { data: photoData, error: photoError } = await supabase.functions.invoke('evolution-update-group-picture', {
                 body: {
                   instanceName,
                   groupId: group.wa_group_id,
@@ -181,6 +188,7 @@ Deno.serve(async (req) => {
               });
 
               if (photoError) throw photoError;
+              if (photoData?.error) throw new Error(photoData.error);
             }
 
             successCount++;
@@ -190,17 +198,34 @@ Deno.serve(async (req) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (groupError: any) {
             errorCount++;
+            const errorMsg = groupError?.message || 'Erro desconhecido';
+            
+            // Detectar erro de permissão
+            let userFriendlyMsg = `${group.name}`;
+            if (errorMsg.includes('403') || errorMsg.includes('Forbidden') || errorMsg.includes('not-admin') || errorMsg.includes('permission')) {
+              userFriendlyMsg += ' - Você não é admin deste grupo';
+            } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+              userFriendlyMsg += ' - Grupo não encontrado';
+            } else {
+              userFriendlyMsg += ` - ${errorMsg}`;
+            }
+            
+            groupErrors.push(userFriendlyMsg);
             console.error(`❌ Erro no grupo ${group.name}:`, groupError);
           }
         }
 
         // Atualizar job com resultado
         const finalStatus = errorCount === 0 ? 'done' : (successCount > 0 ? 'done' : 'failed');
+        const errorMessage = groupErrors.length > 0 
+          ? `Erros (${errorCount}/${groupsData.length}): ${groupErrors.join('; ')}`
+          : null;
+          
         await supabase
           .from('jobs')
           .update({
             status: finalStatus,
-            error_message: errorCount > 0 ? `${errorCount} erro(s) de ${groupsData.length} grupos` : null,
+            error_message: errorMessage,
             updated_at: new Date().toISOString(),
           })
           .eq('id', job.id);

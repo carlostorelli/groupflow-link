@@ -512,6 +512,8 @@ export type Database = {
         | "update_description"
         | "close_groups"
         | "open_groups"
+        | "change_group_name"
+        | "change_group_photo"
       job_status: "pending" | "running" | "done" | "failed"
       user_plan: "free" | "pro" | "elite"
     }
@@ -649,6 +651,8 @@ export const Constants = {
         "update_description",
         "close_groups",
         "open_groups",
+        "change_group_name",
+        "change_group_photo",
       ],
       job_status: ["pending", "running", "done", "failed"],
       user_plan: ["free", "pro", "elite"],
