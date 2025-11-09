@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,9 @@ export default function Groups() {
   const [mentionOpen, setMentionOpen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [instanceName, setInstanceName] = useState<string>('');
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectQrCode, setReconnectQrCode] = useState<string | null>(null);
+  const [showReconnectDialog, setShowReconnectDialog] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -78,6 +81,74 @@ export default function Groups() {
     const interval = setInterval(checkConnectionStatus, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleReconnect = async () => {
+    if (!instanceName) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Nome da instância não encontrado",
+      });
+      return;
+    }
+
+    setReconnecting(true);
+    setReconnectQrCode(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-reconnect-instance', {
+        body: { instanceName }
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.qrcode?.base64) {
+        setReconnectQrCode(data.qrcode.base64);
+        setShowReconnectDialog(true);
+        toast({
+          title: "QR Code gerado!",
+          description: "Escaneie o código com seu WhatsApp para reconectar",
+        });
+
+        // Iniciar polling para verificar conexão
+        const pollInterval = setInterval(async () => {
+          const { data: statusData } = await supabase.functions.invoke('evolution-check-status', {
+            body: { instanceName }
+          });
+
+          if (statusData?.state === 'open') {
+            clearInterval(pollInterval);
+            setConnectionStatus('connected');
+            setShowReconnectDialog(false);
+            setReconnectQrCode(null);
+            
+            // Atualizar status no banco
+            await supabase
+              .from('instances')
+              .update({ status: 'connected' })
+              .eq('instance_id', instanceName);
+
+            toast({
+              title: "WhatsApp reconectado!",
+              description: "Sua instância foi reconectada com sucesso",
+            });
+          }
+        }, 3000);
+
+        // Limpar polling após 2 minutos
+        setTimeout(() => clearInterval(pollInterval), 120000);
+      }
+    } catch (error: any) {
+      console.error('Erro ao reconectar:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao reconectar",
+        description: error.message || "Tente conectar novamente na página WhatsApp",
+      });
+    } finally {
+      setReconnecting(false);
+    }
+  };
 
   const checkConnectionStatus = async () => {
     try {
@@ -513,14 +584,43 @@ export default function Groups() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => navigate('/whatsapp')}
+              onClick={handleReconnect}
+              disabled={reconnecting}
               className="ml-4 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
             >
-              Reconectar Agora
+              {reconnecting ? "Reconectando..." : "Reconectar Agora"}
             </Button>
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Dialog de QR Code para Reconexão */}
+      <Dialog open={showReconnectDialog} onOpenChange={setShowReconnectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reconectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code abaixo com seu WhatsApp para reconectar a instância "{instanceName}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4">
+            {reconnectQrCode ? (
+              <img 
+                src={reconnectQrCode} 
+                alt="QR Code" 
+                className="w-64 h-64 border-2 border-border rounded-lg"
+              />
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
+                <p className="text-muted-foreground">Gerando QR Code...</p>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground text-center">
+              Aguardando escaneamento...
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {connectionStatus === 'connected' && (
         <Alert className="border-success/50 bg-success/10">
