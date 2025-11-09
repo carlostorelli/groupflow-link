@@ -47,9 +47,17 @@ serve(async (req) => {
     
     console.log(`📡 Chamando Evolution API: ${url}`);
 
+    // Se a imagem já tiver o prefixo data:image, remover
+    let cleanImage = image;
+    if (image.includes(',')) {
+      cleanImage = image.split(',')[1];
+    }
+    
     const payload = {
-      image: image // base64 image
+      image: cleanImage // base64 puro
     };
+    
+    console.log('📸 Enviando imagem (primeiros 50 chars):', cleanImage.substring(0, 50));
 
     const response = await fetch(url, {
       method: 'POST',

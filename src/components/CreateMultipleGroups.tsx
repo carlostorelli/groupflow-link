@@ -82,11 +82,14 @@ export function CreateMultipleGroups() {
       let photoBase64 = null;
       if (groupPhoto) {
         const reader = new FileReader();
-        photoBase64 = await new Promise<string>((resolve, reject) => {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(groupPhoto);
         });
+        // Remover o prefixo data:image/...;base64, para enviar apenas o base64 puro
+        photoBase64 = dataUrl.split(',')[1] || dataUrl;
+        console.log('📸 Foto convertida para base64:', photoBase64.substring(0, 50) + '...');
       }
 
       const { data: { user } } = await supabase.auth.getUser();
