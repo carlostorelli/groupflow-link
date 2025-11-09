@@ -76,10 +76,6 @@ export default function Groups() {
   useEffect(() => {
     loadGroups();
     checkConnectionStatus();
-    
-    // Verificar status a cada 30 segundos
-    const interval = setInterval(checkConnectionStatus, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleReconnect = async () => {
@@ -170,27 +166,7 @@ export default function Groups() {
 
       const instance = instances[0];
       setInstanceName(instance.instance_id);
-
-      if (instance.status !== 'connected') {
-        setConnectionStatus('disconnected');
-        return;
-      }
-
-      // Verificar na Evolution API
-      const { data: statusData, error } = await supabase.functions.invoke('evolution-check-status', {
-        body: { instanceName: instance.instance_id }
-      });
-
-      if (error || !statusData?.state || statusData.state !== 'open') {
-        setConnectionStatus('disconnected');
-        // Atualizar status no banco
-        await supabase
-          .from('instances')
-          .update({ status: 'disconnected' })
-          .eq('instance_id', instance.instance_id);
-      } else {
-        setConnectionStatus('connected');
-      }
+      setConnectionStatus(instance.status === 'connected' ? 'connected' : 'disconnected');
     } catch (error) {
       console.error('Erro ao verificar status:', error);
       setConnectionStatus('disconnected');

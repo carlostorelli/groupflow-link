@@ -41,12 +41,33 @@ serve(async (req) => {
       throw new Error('Configurações da Evolution API não encontradas. Configure no painel de Admin.');
     }
 
-    console.log('✅ Configurações carregadas. Tentando buscar QR code...');
+    console.log('✅ Configurações carregadas. Tentando gerar novo QR code...');
 
-    // Tentar buscar o QR code diretamente (a Evolution API retorna QR se desconectado)
-    const qrResponse = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
-      method: 'GET',
-      headers: { 'apikey': apiKey },
+    // Primeiro, tentar deletar a instância antiga
+    try {
+      const deleteResponse = await fetch(`${apiUrl}/instance/delete/${instanceName}`, {
+        method: 'DELETE',
+        headers: { 'apikey': apiKey },
+      });
+      console.log('🗑️ Instância antiga deletada:', deleteResponse.status);
+      // Aguardar 2 segundos
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (e) {
+      console.log('ℹ️ Nenhuma instância antiga para deletar');
+    }
+
+    // Criar nova instância com QR code
+    const qrResponse = await fetch(`${apiUrl}/instance/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': apiKey,
+      },
+      body: JSON.stringify({
+        instanceName: instanceName,
+        qrcode: true,
+        integration: 'WHATSAPP-BAILEYS',
+      }),
     });
 
     console.log('📡 Resposta da Evolution API:', qrResponse.status);
