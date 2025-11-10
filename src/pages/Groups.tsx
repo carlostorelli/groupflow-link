@@ -1233,17 +1233,6 @@ export default function Groups() {
         </AlertDescription>
       </Alert>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          type="text"
-          placeholder="Buscar grupos por nome..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
       <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Ações em Massa</CardTitle>
@@ -1539,6 +1528,17 @@ export default function Groups() {
           </Dialog>
         </CardContent>
       </Card>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Buscar grupos por nome..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
       <Card className="shadow-card">
         <CardHeader>
