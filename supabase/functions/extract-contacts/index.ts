@@ -124,9 +124,9 @@ serve(async (req) => {
 
     console.log('📡 Buscando grupos para encontrar o grupo pelo código...');
 
-    // Buscar todos os grupos da instância para encontrar o que acabamos de juntar
+    // Buscar todos os grupos da instância (sem participantes completos)
     const groupsResponse = await fetch(
-      `${apiUrl}/group/fetchAllGroups/${instanceName}?getParticipants=true`,
+      `${apiUrl}/group/fetchAllGroups/${instanceName}?getParticipants=false`,
       {
         method: 'GET',
         headers: {
@@ -164,44 +164,54 @@ serve(async (req) => {
     }
 
     console.log('✅ Grupo encontrado:', targetGroup.subject || targetGroup.id);
-    console.log('👥 Total de participantes:', targetGroup.participants?.length || 0);
+    
+    // Agora buscar TODOS os participantes usando a função específica
+    console.log('📡 Buscando participantes completos do grupo...');
+    const participantsResponse = await fetch(
+      `${supabaseUrl}/functions/v1/evolution-fetch-group-participants`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers.get('Authorization') || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instanceName: instanceName,
+          groupId: targetGroup.id,
+        }),
+      }
+    );
 
-    // Extrair participantes
-    const participants = targetGroup.participants || [];
+    if (!participantsResponse.ok) {
+      const errorText = await participantsResponse.text();
+      console.error('❌ Erro ao buscar participantes:', errorText);
+      throw new Error('Erro ao buscar participantes do grupo');
+    }
+
+    const participantsData = await participantsResponse.json();
     
-    console.log('📋 Participantes brutos:', JSON.stringify(participants.slice(0, 2), null, 2));
+    if (!participantsData.success || !participantsData.participants) {
+      throw new Error(participantsData.error || 'Erro ao buscar participantes');
+    }
+
+    const participantJids = participantsData.participants;
+    console.log('👥 Total de participantes encontrados:', participantJids.length);
+    console.log('📋 Primeiros JIDs:', participantJids.slice(0, 3));
     
-    const contacts = participants.map((p: any) => {
-      // O ID completo do WhatsApp vem no formato: número@sufixo
-      let phoneNumber = p.id || '';
-      
-      // Remover todos os sufixos do WhatsApp
-      phoneNumber = phoneNumber
+    const contacts = participantJids.map((jid: string) => {
+      // Extrair número do JID (formato: 5547999999999@s.whatsapp.net)
+      const phoneNumber = jid
         .replace('@s.whatsapp.net', '')
         .replace('@c.us', '')
-        .replace('@lid', '')
-        .replace('@g.us', '')
-        .replace(':',''); // Remover também dois pontos se houver
+        .replace('@g.us', '');
       
-      // Tentar extrair o número real do participant se disponível em outros campos
-      const actualPhone = p.participant || p.jid || phoneNumber;
-      const cleanPhone = actualPhone
-        .replace('@s.whatsapp.net', '')
-        .replace('@c.us', '')
-        .replace('@lid', '')
-        .replace('@g.us', '')
-        .replace(':','');
-      
-      // Usar o notify name se disponível, senão o name, senão deixar vazio
-      const displayName = p.notify || p.name || p.verifiedName || '';
-      
-      console.log(`👤 Contato: Nome="${displayName}" | Tel="${cleanPhone}" | ID original="${p.id}"`);
+      console.log(`👤 Contato extraído: Tel="${phoneNumber}" | JID="${jid}"`);
       
       return {
-        id: p.id,
-        name: displayName,
-        phone: cleanPhone,
-        isAdmin: p.admin === 'admin' || p.admin === 'superadmin' || false,
+        id: jid,
+        name: '', // Nome não disponível nesta API, apenas JIDs
+        phone: phoneNumber,
+        isAdmin: false, // Status de admin não disponível nesta chamada
       };
     });
 
