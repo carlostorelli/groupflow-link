@@ -142,9 +142,8 @@ export default function ContactExtractor() {
         // Coluna A (índice 0) = Nome
         row[0] = contact.name;
         
-        // Coluna C (índice 2) = WhatsApp (forçar como texto com apóstrofe)
-        // Isso previne o Excel de converter para notação científica
-        row[2] = `'${contact.phone}`;
+        // Coluna C (índice 2) = WhatsApp (como string, não número)
+        row[2] = contact.phone;
         
         return row;
       });
@@ -153,12 +152,14 @@ export default function ContactExtractor() {
       const newData = [headers, ...contactRows];
       const newWorksheet = XLSX.utils.aoa_to_sheet(newData);
       
-      // Forçar a coluna C (WhatsApp) como texto
+      // Forçar a coluna C (WhatsApp) como formato de texto explicitamente
       const range = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
       for (let row = 1; row <= range.e.r; row++) {
         const cellAddress = XLSX.utils.encode_cell({ r: row, c: 2 }); // Coluna C
         if (newWorksheet[cellAddress]) {
-          newWorksheet[cellAddress].z = '@'; // Formato de texto
+          // Definir como string e não número
+          newWorksheet[cellAddress].t = 's'; // tipo string
+          newWorksheet[cellAddress].v = String(newWorksheet[cellAddress].v); // valor como string
         }
       }
       
