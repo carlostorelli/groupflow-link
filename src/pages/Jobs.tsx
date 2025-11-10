@@ -45,7 +45,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash, Search } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash, Search, BarChart3, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ScheduleMultipleGroups } from "@/components/ScheduleMultipleGroups";
@@ -79,6 +79,11 @@ export default function Jobs() {
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [autoNumberGroups, setAutoNumberGroups] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Poll states
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  
   const { toast } = useToast();
 
   // Carregar jobs do banco de dados
@@ -191,6 +196,8 @@ export default function Jobs() {
     setSelectedGroups([]);
     setAutoNumberGroups(false);
     setSearchTerm("");
+    setPollQuestion("");
+    setPollOptions(["", ""]);
     setDialogOpen(false);
     setEditingJobId(null);
   };
@@ -202,7 +209,13 @@ export default function Jobs() {
     
     // Extrair o payload baseado no tipo de ação
     if (job.action_type === 'send_message') {
-      setPayload(job.payload.message || '');
+      // Check if it's a poll
+      if (job.payload.type === 'poll') {
+        setPollQuestion(job.payload.question || '');
+        setPollOptions(job.payload.options || ["", ""]);
+      } else {
+        setPayload(job.payload.message || '');
+      }
     } else if (job.action_type === 'update_description') {
       setPayload(job.payload.description || '');
     } else if (job.action_type === 'change_group_name') {
@@ -233,6 +246,30 @@ export default function Jobs() {
     setMentionOpen(false);
   };
 
+  const addPollOption = () => {
+    if (pollOptions.length < 12) {
+      setPollOptions([...pollOptions, ""]);
+    } else {
+      toast({
+        title: "Limite atingido",
+        description: "Você pode adicionar no máximo 12 opções",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index));
+    }
+  };
+
+  const updatePollOption = (index: number, value: string) => {
+    const newOptions = [...pollOptions];
+    newOptions[index] = value;
+    setPollOptions(newOptions);
+  };
+
   const handleScheduleJob = async () => {
     if (!actionType || !scheduledDate || !scheduledTime) {
       toast({
@@ -257,6 +294,8 @@ export default function Jobs() {
       groups: selectedGroups,
     };
 
+    let finalActionType = actionType;
+
     if (actionType === 'send_message') {
       if (!payload.trim()) {
         toast({
@@ -267,6 +306,32 @@ export default function Jobs() {
         return;
       }
       jobPayload.message = payload;
+    } else if (actionType === 'send_poll') {
+      if (!pollQuestion.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Pergunta obrigatória",
+          description: "Digite a pergunta da enquete",
+        });
+        return;
+      }
+      
+      const validOptions = pollOptions.filter(opt => opt.trim());
+      if (validOptions.length < 2) {
+        toast({
+          variant: "destructive",
+          title: "Opções insuficientes",
+          description: "A enquete precisa ter pelo menos 2 opções",
+        });
+        return;
+      }
+      
+      // Change to send_message with poll type
+      jobPayload.type = 'poll';
+      jobPayload.question = pollQuestion;
+      jobPayload.options = validOptions;
+      // Override action type to send_message since that's what the processor expects
+      finalActionType = 'send_message';
     } else if (actionType === 'update_description') {
       jobPayload.description = payload;
     } else if (actionType === 'change_group_name') {
@@ -282,14 +347,14 @@ export default function Jobs() {
       // Atualizar job existente
       updateJobMutation.mutate({
         id: editingJobId,
-        action_type: actionType,
+        action_type: finalActionType,
         payload: jobPayload,
         scheduled_for: scheduledFor,
       });
     } else {
       // Criar novo job
       createJobMutation.mutate({
-        action_type: actionType,
+        action_type: finalActionType,
         scheduled_for: scheduledFor,
         payload: jobPayload,
       });
@@ -318,6 +383,7 @@ export default function Jobs() {
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
       send_message: "Enviar Mensagem",
+      send_poll: "Enviar Enquete",
       update_description: "Alterar Descrição",
       close_groups: "Fechar Grupos",
       open_groups: "Abrir Grupos",
@@ -402,6 +468,7 @@ export default function Jobs() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="send_message">Enviar Mensagem</SelectItem>
+                    <SelectItem value="send_poll">Enviar Enquete</SelectItem>
                     <SelectItem value="update_description">Alterar Descrição</SelectItem>
                     <SelectItem value="close_groups">Fechar Grupos</SelectItem>
                     <SelectItem value="open_groups">Abrir Grupos</SelectItem>
@@ -474,6 +541,55 @@ export default function Jobs() {
                   />
                 </div>
               </div>
+
+              {actionType === "send_poll" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="poll-question">Pergunta da Enquete</Label>
+                    <Textarea
+                      id="poll-question"
+                      placeholder="Digite a pergunta da enquete"
+                      value={pollQuestion}
+                      onChange={(e) => setPollQuestion(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Opções de Resposta (mín: 2, máx: 12)</Label>
+                    {pollOptions.map((option, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          placeholder={`Opção ${index + 1}`}
+                          value={option}
+                          onChange={(e) => updatePollOption(index, e.target.value)}
+                        />
+                        {pollOptions.length > 2 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removePollOption(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {pollOptions.length < 12 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addPollOption}
+                        className="w-full"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar Opção
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {actionType === "send_message" && (
                 <div className="space-y-4">
