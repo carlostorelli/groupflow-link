@@ -48,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ScheduleMultipleGroups } from "@/components/ScheduleMultipleGroups";
 
 interface Job {
   id: string;
@@ -370,14 +371,15 @@ export default function Jobs() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Agendamento
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex gap-2">
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Agendamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {editingJobId ? 'Editar Agendamento' : 'Agendar Nova Ação'}
@@ -623,7 +625,10 @@ export default function Jobs() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+          
+          <ScheduleMultipleGroups />
+        </div>
       </div>
 
       {/* Disclaimer sobre ações administrativas */}
