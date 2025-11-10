@@ -558,14 +558,17 @@ export default function AITools() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="productLinks">Links dos Produtos</Label>
+                <Label htmlFor="productLinks">Link do Produto</Label>
                 <Textarea
                   id="productLinks"
-                  placeholder='Cole os links dos produtos aqui, um por linha&#10;Ex:&#10;https://shopee.com.br/produto1&#10;https://shopee.com.br/produto2'
+                  placeholder="Cole o link do produto aqui&#10;Ex: https://shopee.com.br/produto"
                   value={productLinks}
                   onChange={(e) => setProductLinks(e.target.value)}
-                  rows={5}
+                  rows={3}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Cole apenas um link de produto por vez para melhores resultados
+                </p>
               </div>
 
               <div className="space-y-2">

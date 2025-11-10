@@ -12,8 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { productLinks, copyStyle } = await req.json();
-    console.log('Criando mensagens para:', productLinks, 'Estilo:', copyStyle);
+    const { productLinks, copyStyle, affiliateLink } = await req.json();
+    console.log('Criando mensagens para:', productLinks, 'Estilo:', copyStyle, 'Link afiliado:', affiliateLink);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -31,14 +31,20 @@ serve(async (req) => {
 
     const styleDesc = styleDescriptions[copyStyle] || styleDescriptions.aggressive;
 
-    const prompt = `Você é um especialista em copywriting para vendas no WhatsApp. Analise os seguintes links de produtos e crie mensagens de venda persuasivas.
+    const linkToInclude = affiliateLink || productLinks;
 
-Links dos produtos:
+    const prompt = `Você é um especialista em copywriting para vendas no WhatsApp. Analise o seguinte link de produto e crie mensagens de venda persuasivas.
+
+Link do produto:
 ${productLinks}
+
+${affiliateLink ? `Link de afiliado (USE ESTE LINK nas mensagens):\n${affiliateLink}\n` : ''}
 
 Estilo solicitado: ${styleDesc}
 
-IMPORTANTE: Primeiro, faça uma breve análise dos links fornecidos (mesmo que sejam genéricos, extraia o máximo de informação possível do texto do link).
+IMPORTANTE: 
+- Primeiro, faça uma breve análise do link fornecido (mesmo que seja genérico, extraia o máximo de informação possível do texto do link).
+- OBRIGATÓRIO: Inclua o link ${affiliateLink ? 'de afiliado' : 'do produto'} em TODAS as mensagens geradas. Use o formato "LINK DO PRODUTO AQUI: [link]" no final de cada mensagem.
 
 Depois, crie 3 versões diferentes de mensagens de venda no estilo solicitado. Cada mensagem deve:
 - Ter entre 100-200 palavras
@@ -46,6 +52,7 @@ Depois, crie 3 versões diferentes de mensagens de venda no estilo solicitado. C
 - Incluir call-to-action forte
 - Ser adaptada para envio em grupos de WhatsApp
 - Ser única e diferente das outras versões
+- SEMPRE terminar com o link do produto
 
 Além disso, forneça:
 - Uma explicação de por que cada mensagem funciona
@@ -53,11 +60,11 @@ Além disso, forneça:
 
 Retorne APENAS um JSON válido (sem markdown) no seguinte formato:
 {
-  "productInfo": "Breve análise dos produtos baseada nos links fornecidos",
+  "productInfo": "Breve análise do produto baseada no link fornecido",
   "messages": [
     {
       "style": "Nome descritivo desta variação",
-      "message": "Texto completo da mensagem de venda",
+      "message": "Texto completo da mensagem de venda COM O LINK incluído no final",
       "reason": "Explicação de por que esta abordagem funciona"
     }
   ],
