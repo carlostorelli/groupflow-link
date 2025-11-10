@@ -13,7 +13,6 @@ import {
   Sun,
   Shield,
   BookOpen,
-  BarChart3,
 } from "lucide-react";
 import logoLight from "@/assets/logo-light.png";
 import logoDark from "@/assets/logo-dark.png";
@@ -42,7 +41,6 @@ const menuItems = [
   { title: "Agendamentos", url: "/jobs", icon: Calendar },
   { title: "Link de Redirecionamento", url: "/redirect", icon: Link2 },
   { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
-  { title: "Enquetes", url: "/polls", icon: BarChart3 },
   { title: "Ferramentas de IA", url: "/ai-tools", icon: Sparkles },
   { title: "Histórico", url: "/history", icon: History },
   { title: "Admin", url: "/admin", icon: Shield },
