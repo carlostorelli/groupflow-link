@@ -22,20 +22,32 @@ export default function PublicRedirect() {
 
   const handleRedirect = async () => {
     try {
-      console.log('🔗 Processando redirecionamento para:', slug);
+      console.log('🔗 Processando redirecionamento para slug:', slug);
+      
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redirect-link?slug=${encodeURIComponent(slug || '')}`;
+      console.log('📡 URL completa:', url);
 
       // Chamar edge function via fetch para passar query params
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redirect-link?slug=${slug}`
-      );
+      const response = await fetch(url);
+
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response ok:', response.ok);
+
+      const responseText = await response.text();
+      console.log('📄 Response body:', responseText);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Erro HTTP ${response.status}: ${responseText}`);
+        }
         throw new Error(errorData.error || 'Erro ao processar link');
       }
 
-      const data = await response.json();
-      console.log('📡 Resposta:', data);
+      const data = JSON.parse(responseText);
+      console.log('✅ Dados parseados:', data);
 
       if (!data?.success) {
         throw new Error(data?.error || 'Erro ao processar link');
@@ -48,7 +60,8 @@ export default function PublicRedirect() {
       window.location.href = data.redirect_url;
 
     } catch (error: any) {
-      console.error('❌ Erro:', error);
+      console.error('❌ Erro completo:', error);
+      console.error('❌ Stack:', error.stack);
       setError(error.message || 'Erro ao processar o link');
       setLoading(false);
     }

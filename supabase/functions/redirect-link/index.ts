@@ -24,7 +24,11 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
 
-    console.log('🔗 Processando redirect link:', { slug });
+    console.log('🔗 Processando redirect link:', { 
+      slug, 
+      fullUrl: req.url,
+      searchParams: Object.fromEntries(url.searchParams.entries())
+    });
 
     if (!slug) {
       return new Response(
