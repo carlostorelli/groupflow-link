@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Trash2, Eye, Search, Check, AlertCircle, ArrowUp, ArrowDown } from "lucide-react";
+import { Copy, ExternalLink, Trash2, Eye, Search, Check, AlertCircle, ArrowUp, ArrowDown, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -51,6 +52,7 @@ interface Group {
   member_limit: number;
   priority?: number;
   click_limit?: number;
+  is_favorite?: boolean;
 }
 
 export default function RedirectLink() {
@@ -79,6 +81,8 @@ export default function RedirectLink() {
     if (user) {
       loadSavedLinks();
       loadGroups();
+      // Gerar slug aleatória ao carregar
+      generateRandomSlug();
     }
   }, [user]);
 
@@ -86,7 +90,7 @@ export default function RedirectLink() {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name, wa_group_id, invite_code, members_count, member_limit')
+        .select('id, name, wa_group_id, invite_code, members_count, member_limit, is_favorite')
         .order('is_favorite', { ascending: false })
         .order('name', { ascending: true });
 
@@ -174,10 +178,6 @@ export default function RedirectLink() {
       randomSlug += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setSlug(randomSlug);
-    toast({
-      title: "Slug gerada!",
-      description: `Slug aleatória criada: ${randomSlug}`,
-    });
   };
 
   const moveUp = (index: number) => {
@@ -307,11 +307,12 @@ export default function RedirectLink() {
 
       if (error) throw error;
 
-      // Limpar form
+      // Limpar form e gerar nova slug
       setLinkName("");
       setSlug("");
       setGroupPriorities([]);
       setSelectedGroupIds([]);
+      generateRandomSlug();
       
       await loadSavedLinks();
       
@@ -355,6 +356,132 @@ export default function RedirectLink() {
     }
   };
 
+  const startEditLink = (link: any) => {
+    setEditingLink(link);
+    setLinkName(link.name || '');
+    setSlug(link.slug);
+    setDistributionStrategy(link.distribution_strategy || 'click_limit');
+    
+    // Carregar grupos do link
+    const linkGroups = link.group_priorities as any[];
+    setGroupPriorities(linkGroups.map((g: any) => ({
+      ...g,
+      is_favorite: allGroups.find(ag => ag.id === g.id)?.is_favorite || false
+    })));
+    setSelectedGroupIds(linkGroups.map((g: any) => g.id));
+    
+    // Scroll para o formulário
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    toast({
+      title: "Editando link",
+      description: "Altere as informações e clique em 'Atualizar Link'",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingLink(null);
+    setLinkName("");
+    setSlug("");
+    setGroupPriorities([]);
+    setSelectedGroupIds([]);
+    generateRandomSlug();
+    
+    toast({
+      title: "Edição cancelada",
+      description: "Formulário resetado",
+    });
+  };
+
+  const handleUpdateLink = async () => {
+    if (!editingLink) return;
+
+    setLoading(true);
+    try {
+      // Validações
+      if (!linkName.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Nome obrigatório",
+          description: "Por favor, dê um nome para seu redirecionamento",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (groupPriorities.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Grupos obrigatórios",
+          description: "Selecione pelo menos um grupo",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (distributionStrategy === 'click_limit') {
+        const hasInvalidLimits = groupPriorities.some(g => 
+          !g.click_limit || g.click_limit <= 0
+        );
+        
+        if (hasInvalidLimits) {
+          toast({
+            variant: "destructive",
+            title: "Limites de cliques obrigatórios",
+            description: "Configure quantos cliques cada grupo deve receber",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('saved_redirect_links')
+        .update({
+          name: linkName.trim(),
+          distribution_strategy: distributionStrategy,
+          group_priorities: groupPriorities.map(g => ({
+            id: g.id,
+            name: g.name,
+            wa_group_id: g.wa_group_id,
+            invite_code: g.invite_code,
+            members_count: g.members_count,
+            member_limit: g.member_limit,
+            priority: g.priority,
+            click_limit: g.click_limit || 0
+          })),
+        })
+        .eq('id', editingLink.id);
+
+      if (error) throw error;
+
+      cancelEdit();
+      await loadSavedLinks();
+      
+      toast({
+        title: "Link atualizado!",
+        description: "As alterações foram salvas com sucesso",
+      });
+    } catch (error: any) {
+      console.error('Error updating link:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Não foi possível atualizar o link",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateOrUpdate = async () => {
+    if (editingLink) {
+      await handleUpdateLink();
+    } else {
+      await handleCreateLink();
+    }
+  };
+
   const copyToClipboard = (linkSlug: string) => {
     const link = `${window.location.origin}/r/${linkSlug}`;
     navigator.clipboard.writeText(link);
@@ -376,12 +503,30 @@ export default function RedirectLink() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle>Configurar Link</CardTitle>
+            <CardTitle>{editingLink ? 'Editar Link' : 'Configurar Link'}</CardTitle>
             <CardDescription>
-              Personalize seu link de redirecionamento
+              {editingLink ? 'Altere as informações do seu link' : 'Personalize seu link de redirecionamento'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {editingLink && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span>Editando link existente</span>
+                  <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                    Cancelar
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>IMPORTANTE:</strong> Use apenas grupos onde você é Admin. Grupos sem permissão de admin podem não funcionar corretamente.
+              </AlertDescription>
+            </Alert>
             <div className="space-y-2">
               <Label htmlFor="linkName">Nome do Redirecionamento</Label>
               <Input
@@ -396,30 +541,22 @@ export default function RedirectLink() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="slug">Slug do Link</Label>
+              <Label htmlFor="slug">Slug do Link (gerada automaticamente)</Label>
               <div className="flex gap-2">
                 <span className="flex items-center px-3 bg-secondary rounded-l-lg text-muted-foreground">
                   /r/
                 </span>
                 <Input
                   id="slug"
-                  placeholder="meu-grupo"
+                  placeholder="slug-aleatoria"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
-                  className="flex-1 rounded-l-none rounded-r-none border-r-0"
+                  className="flex-1 rounded-l-none"
+                  disabled={!!editingLink}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={generateRandomSlug}
-                  className="rounded-l-none"
-                  title="Gerar slug aleatória"
-                >
-                  🎲
-                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Use apenas letras minúsculas, números e hífens
+                {editingLink ? 'A slug não pode ser alterada após criar o link' : 'Slug gerada automaticamente. Você pode editá-la se quiser.'}
               </p>
             </div>
 
@@ -485,8 +622,38 @@ export default function RedirectLink() {
                       className="mb-2"
                     />
                     <div className="border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                      {searchTerm === '' && allGroups.length > 0 && (
+                        <>
+                          {allGroups.filter(g => g.is_favorite).length > 0 && (
+                            <>
+                              <p className="text-xs font-semibold text-muted-foreground mb-2">⭐ Favoritos</p>
+                              {allGroups.filter(g => g.is_favorite).map((group) => (
+                                <div key={group.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`link-group-${group.id}`}
+                                    checked={selectedGroupIds.includes(group.id)}
+                                    onCheckedChange={() => toggleGroupSelection(group.id)}
+                                  />
+                                  <Label
+                                    htmlFor={`link-group-${group.id}`}
+                                    className="text-sm font-normal cursor-pointer flex-1"
+                                  >
+                                    {group.name}
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      ({group.members_count}/{group.member_limit})
+                                    </span>
+                                  </Label>
+                                </div>
+                              ))}
+                              <div className="border-t my-2"></div>
+                            </>
+                          )}
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">Todos os Grupos</p>
+                        </>
+                      )}
                       {allGroups
-                        .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .filter(g => searchTerm === '' || g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .filter(g => searchTerm !== '' || !g.is_favorite)
                         .map((group) => (
                         <div key={group.id} className="flex items-center space-x-2">
                           <Checkbox
@@ -518,7 +685,7 @@ export default function RedirectLink() {
             </div>
 
             <Button 
-              onClick={handleCreateLink} 
+              onClick={handleCreateOrUpdate} 
               disabled={loading || !linkName.trim() || !slug.trim() || groupPriorities.length === 0} 
               className="w-full"
             >
@@ -565,7 +732,16 @@ export default function RedirectLink() {
                     <Button 
                       size="sm" 
                       variant="ghost"
+                      onClick={() => startEditLink(link)}
+                      title="Editar link"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
                       onClick={() => window.open(`/r/${link.slug}`, '_blank')}
+                      title="Abrir link"
                     >
                       <ExternalLink className="h-3 w-3" />
                     </Button>
@@ -573,6 +749,7 @@ export default function RedirectLink() {
                       size="sm" 
                       variant="ghost"
                       onClick={() => deleteLink(link.id)}
+                      title="Excluir link"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
