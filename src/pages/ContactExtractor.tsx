@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Upload, Loader2, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 interface Contact {
   id: string;
@@ -31,10 +33,52 @@ export default function ContactExtractor() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [filterAdminsOnly, setFilterAdminsOnly] = useState(false);
+  const [useGroupSelector, setUseGroupSelector] = useState(true);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [adminGroups, setAdminGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
   const { toast } = useToast();
 
+  // Carregar grupos onde o usuário é admin
+  useEffect(() => {
+    const loadAdminGroups = async () => {
+      setLoadingGroups(true);
+      try {
+        const { data, error } = await supabase
+          .from("groups")
+          .select("id, name, wa_group_id, members_count, instance_id")
+          .eq("is_admin", true)
+          .order("name");
+
+        if (error) throw error;
+
+        setAdminGroups(data || []);
+      } catch (error) {
+        console.error("Erro ao carregar grupos:", error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar seus grupos",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+
+    loadAdminGroups();
+  }, [toast]);
+
   const handleExtract = async () => {
-    if (!groupLink.trim()) {
+    if (useGroupSelector && !selectedGroupId) {
+      toast({
+        variant: "destructive",
+        title: "Grupo obrigatório",
+        description: "Selecione um grupo para extrair contatos",
+      });
+      return;
+    }
+
+    if (!useGroupSelector && !groupLink.trim()) {
       toast({
         variant: "destructive",
         title: "Link obrigatório",
@@ -46,8 +90,36 @@ export default function ContactExtractor() {
     setIsExtracting(true);
     
     try {
+      let requestBody;
+      
+      if (useGroupSelector) {
+        const selectedGroup = adminGroups.find(g => g.id === selectedGroupId);
+        if (!selectedGroup) {
+          throw new Error("Grupo não encontrado");
+        }
+
+        // Buscar instância do grupo
+        const { data: instanceData, error: instanceError } = await supabase
+          .from("instances")
+          .select("instance_id")
+          .eq("id", selectedGroup.instance_id)
+          .single();
+
+        if (instanceError || !instanceData) {
+          throw new Error("Instância não encontrada");
+        }
+
+        requestBody = {
+          useGroupId: true,
+          instanceName: instanceData.instance_id,
+          groupId: selectedGroup.wa_group_id,
+        };
+      } else {
+        requestBody = { groupLink };
+      }
+
       const { data, error } = await supabase.functions.invoke("extract-contacts", {
-        body: { groupLink },
+        body: requestBody,
       });
 
       if (error) {
@@ -231,34 +303,81 @@ export default function ContactExtractor() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="group-link">Link do Grupo WhatsApp</Label>
-            <div className="flex gap-2">
+          <div className="flex items-center space-x-2 mb-4">
+            <Switch
+              id="use-group-selector"
+              checked={useGroupSelector}
+              onCheckedChange={setUseGroupSelector}
+            />
+            <Label htmlFor="use-group-selector">
+              Usar apenas meus grupos (onde sou admin)
+            </Label>
+          </div>
+
+          {useGroupSelector ? (
+            <div className="space-y-2">
+              <Label htmlFor="group-select">Selecione o Grupo</Label>
+              <Select
+                value={selectedGroupId}
+                onValueChange={setSelectedGroupId}
+                disabled={isExtracting || loadingGroups}
+              >
+                <SelectTrigger id="group-select">
+                  <SelectValue placeholder={loadingGroups ? "Carregando grupos..." : "Selecione um grupo"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {loadingGroups ? (
+                    <SelectItem value="loading" disabled>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Carregando...
+                    </SelectItem>
+                  ) : adminGroups.length === 0 ? (
+                    <SelectItem value="empty" disabled>
+                      Nenhum grupo disponível
+                    </SelectItem>
+                  ) : (
+                    adminGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name} ({group.members_count} membros)
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Apenas grupos onde você é administrador
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="group-link">Link do Grupo WhatsApp</Label>
               <Input
                 id="group-link"
                 placeholder="https://chat.whatsapp.com/..."
                 value={groupLink}
                 onChange={(e) => setGroupLink(e.target.value)}
-                className="flex-1"
+                disabled={isExtracting}
               />
-              <Button 
-                onClick={handleExtract}
-                disabled={isExtracting || !groupLink.trim()}
-              >
-                {isExtracting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Extraindo...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Extrair
-                  </>
-                )}
-              </Button>
             </div>
-          </div>
+          )}
+
+          <Button
+            onClick={handleExtract}
+            disabled={isExtracting || (useGroupSelector ? !selectedGroupId : !groupLink.trim()) || loadingGroups}
+            className="w-full"
+          >
+            {isExtracting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Extraindo...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Extrair
+              </>
+            )}
+          </Button>
 
           {contacts.length > 0 && (
             <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg border border-primary/20">

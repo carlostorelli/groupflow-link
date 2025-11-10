@@ -7,7 +7,10 @@ const corsHeaders = {
 };
 
 interface ExtractContactsRequest {
-  groupLink: string;
+  groupLink?: string;
+  useGroupId?: boolean;
+  instanceName?: string;
+  groupId?: string;
 }
 
 serve(async (req) => {
@@ -16,27 +19,19 @@ serve(async (req) => {
   }
 
   try {
-    const { groupLink }: ExtractContactsRequest = await req.json();
-    console.log('🔍 Extraindo contatos do grupo:', groupLink);
+    const { groupLink, useGroupId, instanceName, groupId }: ExtractContactsRequest = await req.json();
+    console.log('🔍 Extraindo contatos - Modo:', useGroupId ? 'Por ID de Grupo' : 'Por Link');
 
-    if (!groupLink) {
-      throw new Error('Link do grupo é obrigatório');
+    if (!useGroupId && !groupLink) {
+      throw new Error('Link do grupo ou ID é obrigatório');
     }
 
-    // Extrair código do convite do link
-    // Formato: https://chat.whatsapp.com/XXXXX
-    const groupCodeMatch = groupLink.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/);
-    if (!groupCodeMatch) {
-      throw new Error('Formato de link do WhatsApp inválido');
-    }
+    let inviteCode: string | undefined;
+    let targetInstanceName: string;
+    let targetGroupId: string;
 
-    const inviteCode = groupCodeMatch[1];
-    console.log('📋 Código do convite:', inviteCode);
-
-    // Buscar configurações da Evolution API
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Buscar token do header
@@ -54,119 +49,145 @@ serve(async (req) => {
 
     console.log('👤 Usuário:', user.id);
 
-    // Buscar instância ativa do usuário
-    const { data: instances, error: instanceError } = await supabase
-      .from('instances')
-      .select('instance_id, status')
-      .eq('user_id', user.id)
-      .eq('status', 'connected')
-      .limit(1);
-
-    if (instanceError) {
-      console.error('❌ Erro ao buscar instância:', instanceError);
-      throw new Error('Erro ao buscar instância do WhatsApp');
-    }
-
-    if (!instances || instances.length === 0) {
-      throw new Error('Nenhuma instância WhatsApp conectada. Conecte uma instância primeiro.');
-    }
-
-    const instanceName = instances[0].instance_id;
-    console.log('📱 Instância:', instanceName);
-
-    // Buscar settings da Evolution API
-    const settingsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/settings?key=in.(evolution_api_url,evolution_api_key)&select=*`,
-      {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-        },
+    if (useGroupId) {
+      // Modo direto: já temos instanceName e groupId
+      if (!instanceName || !groupId) {
+        throw new Error('instanceName e groupId são obrigatórios no modo direto');
       }
-    );
-
-    const settings = await settingsResponse.json();
-    const apiUrl = settings.find((s: any) => s.key === 'evolution_api_url')?.value;
-    const apiKey = settings.find((s: any) => s.key === 'evolution_api_key')?.value;
-
-    if (!apiUrl || !apiKey) {
-      throw new Error('Configurações da Evolution API não encontradas');
-    }
-
-    console.log('🔗 Juntando grupo via código de convite...');
-
-    // Primeiro, tentar juntar o grupo via código de convite
-    const joinResponse = await fetch(
-      `${apiUrl}/group/acceptInvite/${instanceName}`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inviteCode: inviteCode,
-        }),
-      }
-    );
-
-    if (!joinResponse.ok) {
-      const errorText = await joinResponse.text();
-      console.error('⚠️ Erro ao juntar grupo (pode já estar no grupo):', joinResponse.status, errorText);
-      // Não vamos lançar erro aqui, pois pode já estar no grupo
+      targetInstanceName = instanceName;
+      targetGroupId = groupId;
+      console.log('📱 Usando grupo direto:', { instanceName, groupId });
     } else {
-      const joinData = await joinResponse.json();
-      console.log('✅ Juntou ao grupo:', joinData);
-    }
-
-    // Aguardar um pouco para o WhatsApp processar
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    console.log('📡 Buscando grupos para encontrar o grupo pelo código...');
-
-    // Buscar todos os grupos da instância (sem participantes completos)
-    const groupsResponse = await fetch(
-      `${apiUrl}/group/fetchAllGroups/${instanceName}?getParticipants=false`,
-      {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey,
-          'Content-Type': 'application/json',
-        },
+      // Modo link: extrair código do convite e buscar instância
+      if (!groupLink) {
+        throw new Error('Link do grupo é obrigatório');
       }
-    );
-
-    if (!groupsResponse.ok) {
-      const errorText = await groupsResponse.text();
-      console.error('❌ Erro ao buscar grupos:', groupsResponse.status, errorText);
-      throw new Error(`Erro ao buscar grupos: ${groupsResponse.status}`);
-    }
-
-    const groupsData = await groupsResponse.json();
-    console.log('📋 Total de grupos encontrados:', groupsData.length);
-
-    // Procurar o grupo que tem o código de convite correspondente
-    let targetGroup = null;
-    for (const group of groupsData) {
-      if (group.inviteCode === inviteCode || group.subject?.includes(inviteCode)) {
-        targetGroup = group;
-        break;
+      
+      const groupCodeMatch = groupLink.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/);
+      if (!groupCodeMatch) {
+        throw new Error('Formato de link do WhatsApp inválido');
       }
-    }
 
-    if (!targetGroup) {
-      console.log('⚠️ Grupo não encontrado pelo código, tentando o primeiro grupo...');
-      targetGroup = groupsData[0];
-    }
+      inviteCode = groupCodeMatch[1];
+      console.log('📋 Código do convite:', inviteCode);
 
-    if (!targetGroup) {
-      throw new Error('Não foi possível encontrar o grupo');
-    }
+      // Buscar instância ativa do usuário
+      const { data: instances, error: instanceError } = await supabase
+        .from('instances')
+        .select('instance_id, status')
+        .eq('user_id', user.id)
+        .eq('status', 'connected')
+        .limit(1);
 
-    console.log('✅ Grupo encontrado:', targetGroup.subject || targetGroup.id);
+      if (instanceError) {
+        console.error('❌ Erro ao buscar instância:', instanceError);
+        throw new Error('Erro ao buscar instância do WhatsApp');
+      }
+
+      if (!instances || instances.length === 0) {
+        throw new Error('Nenhuma instância WhatsApp conectada. Conecte uma instância primeiro.');
+      }
+
+      targetInstanceName = instances[0].instance_id;
+      console.log('📱 Instância:', targetInstanceName);
+
+      // Buscar settings da Evolution API
+      const settingsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/settings?key=in.(evolution_api_url,evolution_api_key)&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+        }
+      );
+
+      const settings = await settingsResponse.json();
+      const apiUrl = settings.find((s: any) => s.key === 'evolution_api_url')?.value;
+      const apiKey = settings.find((s: any) => s.key === 'evolution_api_key')?.value;
+
+      if (!apiUrl || !apiKey) {
+        throw new Error('Configurações da Evolution API não encontradas');
+      }
+
+      console.log('🔗 Juntando grupo via código de convite...');
+
+      // Tentar juntar o grupo via código de convite
+      const joinResponse = await fetch(
+        `${apiUrl}/group/acceptInvite/${targetInstanceName}`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inviteCode: inviteCode,
+          }),
+        }
+      );
+
+      if (!joinResponse.ok) {
+        const errorText = await joinResponse.text();
+        console.error('⚠️ Erro ao juntar grupo (pode já estar no grupo):', joinResponse.status, errorText);
+      } else {
+        const joinData = await joinResponse.json();
+        console.log('✅ Juntou ao grupo:', joinData);
+      }
+
+      // Aguardar um pouco para o WhatsApp processar
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      console.log('📡 Buscando grupos para encontrar o grupo pelo código...');
+
+      // Buscar todos os grupos da instância
+      const encodedInstanceName = encodeURIComponent(targetInstanceName);
+      const groupsResponse = await fetch(
+        `${apiUrl}/group/fetchAllGroups/${encodedInstanceName}?getParticipants=false`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!groupsResponse.ok) {
+        const errorText = await groupsResponse.text();
+        console.error('❌ Erro ao buscar grupos:', groupsResponse.status, errorText);
+        throw new Error(`Erro ao buscar grupos: ${groupsResponse.status}`);
+      }
+
+      const groupsData = await groupsResponse.json();
+      console.log('📋 Total de grupos encontrados:', groupsData.length);
+
+      // Procurar o grupo pelo código de convite
+      let targetGroup = null;
+      for (const group of groupsData) {
+        if (group.inviteCode === inviteCode || group.subject?.includes(inviteCode)) {
+          targetGroup = group;
+          break;
+        }
+      }
+
+      if (!targetGroup) {
+        console.log('⚠️ Grupo não encontrado pelo código, tentando o primeiro grupo...');
+        targetGroup = groupsData[0];
+      }
+
+      if (!targetGroup) {
+        throw new Error('Não foi possível encontrar o grupo');
+      }
+
+      targetGroupId = targetGroup.id;
+      console.log('✅ Grupo encontrado:', targetGroup.subject || targetGroup.id);
+    }
     
     // Agora buscar TODOS os participantes usando a função específica
     console.log('📡 Buscando participantes completos do grupo...');
+    console.log('Parâmetros:', { instanceName: targetInstanceName, groupId: targetGroupId });
+    
     const participantsResponse = await fetch(
       `${supabaseUrl}/functions/v1/evolution-fetch-group-participants`,
       {
@@ -176,8 +197,8 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          instanceName: instanceName,
-          groupId: targetGroup.id,
+          instanceName: targetInstanceName,
+          groupId: targetGroupId,
         }),
       }
     );
@@ -220,8 +241,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        groupId: targetGroup.id,
-        groupName: targetGroup.subject,
+        groupId: targetGroupId,
+        groupName: useGroupId ? 'Grupo Selecionado' : 'Grupo Extraído',
         contacts: contacts,
         totalContacts: contacts.length,
       }),
