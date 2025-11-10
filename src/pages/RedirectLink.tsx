@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Trash2, Eye, Search } from "lucide-react";
+import { Copy, ExternalLink, Trash2, Eye, Search, Check, AlertCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -46,9 +46,11 @@ interface Group {
   id: string;
   name: string;
   wa_group_id: string;
+  invite_code?: string;
   members_count: number;
   member_limit: number;
   priority?: number;
+  click_limit?: number;
 }
 
 export default function RedirectLink() {
@@ -60,6 +62,7 @@ export default function RedirectLink() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [distributionStrategy, setDistributionStrategy] = useState<'member_limit' | 'click_limit'>('click_limit');
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -81,7 +84,7 @@ export default function RedirectLink() {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name, wa_group_id, members_count, member_limit')
+        .select('id, name, wa_group_id, invite_code, members_count, member_limit')
         .order('is_favorite', { ascending: false })
         .order('name', { ascending: true });
 
@@ -239,18 +242,38 @@ export default function RedirectLink() {
         return;
       }
 
+      // Validar limites de cliques se usando estratégia click_limit
+      if (distributionStrategy === 'click_limit') {
+        const hasInvalidLimits = groupPriorities.some(g => 
+          !g.click_limit || g.click_limit <= 0
+        );
+        
+        if (hasInvalidLimits) {
+          toast({
+            variant: "destructive",
+            title: "Limites de cliques obrigatórios",
+            description: "Configure quantos cliques cada grupo deve receber",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from('saved_redirect_links')
         .insert({
           user_id: user?.id,
           slug: slug.toLowerCase(),
+          distribution_strategy: distributionStrategy,
           group_priorities: groupPriorities.map(g => ({
             id: g.id,
             name: g.name,
             wa_group_id: g.wa_group_id,
+            invite_code: g.invite_code,
             members_count: g.members_count,
             member_limit: g.member_limit,
-            priority: g.priority
+            priority: g.priority,
+            click_limit: g.click_limit || 0
           })),
           is_active: true
         })
@@ -349,6 +372,45 @@ export default function RedirectLink() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Use apenas letras minúsculas, números e hífens
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Estratégia de Distribuição</Label>
+              <div className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="click_limit"
+                    name="strategy"
+                    value="click_limit"
+                    checked={distributionStrategy === 'click_limit'}
+                    onChange={() => setDistributionStrategy('click_limit')}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="click_limit" className="font-normal cursor-pointer">
+                    Limite de Cliques
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="member_limit"
+                    name="strategy"
+                    value="member_limit"
+                    checked={distributionStrategy === 'member_limit'}
+                    onChange={() => setDistributionStrategy('member_limit')}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="member_limit" className="font-normal cursor-pointer">
+                    Vagas Disponíveis
+                  </Label>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {distributionStrategy === 'click_limit' 
+                  ? "Configure quantos cliques cada grupo deve receber antes de passar para o próximo" 
+                  : "Distribui baseado em vagas disponíveis (membros vs limite)"}
               </p>
             </div>
 
@@ -497,7 +559,13 @@ export default function RedirectLink() {
                 <TableRow>
                   <TableHead className="w-[100px]">Ordem</TableHead>
                   <TableHead>Grupo</TableHead>
-                  <TableHead>Membros</TableHead>
+                  <TableHead>Link WhatsApp</TableHead>
+                  {distributionStrategy === 'click_limit' && (
+                    <TableHead>Limite Cliques</TableHead>
+                  )}
+                  {distributionStrategy === 'member_limit' && (
+                    <TableHead>Membros</TableHead>
+                  )}
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -507,20 +575,69 @@ export default function RedirectLink() {
                   strategy={verticalListSortingStrategy}
                 >
                   {groupPriorities.map((group, index) => (
-                    <SortableGroupRow
-                      key={group.id}
-                      group={{
-                        id: group.id,
-                        name: group.name,
-                        priority: group.priority || index + 1,
-                        members: group.members_count,
-                        limit: group.member_limit
-                      }}
-                      index={index}
-                      totalGroups={groupPriorities.length}
-                      onMoveUp={moveUp}
-                      onMoveDown={moveDown}
-                    />
+                    <TableRow key={group.id}>
+                      <TableCell className="font-medium">
+                        #{group.priority || index + 1}
+                      </TableCell>
+                      <TableCell>{group.name}</TableCell>
+                      <TableCell>
+                        {group.invite_code ? (
+                          <Badge variant="outline" className="text-xs">
+                            <Check className="mr-1 h-3 w-3" />
+                            Configurado
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-orange-600">
+                            <AlertCircle className="mr-1 h-3 w-3" />
+                            Sem link
+                          </Badge>
+                        )}
+                      </TableCell>
+                      {distributionStrategy === 'click_limit' && (
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Ex: 50"
+                            value={group.click_limit || ''}
+                            onChange={(e) => {
+                              const newLimit = parseInt(e.target.value) || 0;
+                              setGroupPriorities(prev =>
+                                prev.map(g =>
+                                  g.id === group.id ? { ...g, click_limit: newLimit } : g
+                                )
+                              );
+                            }}
+                            className="w-24"
+                          />
+                        </TableCell>
+                      )}
+                      {distributionStrategy === 'member_limit' && (
+                        <TableCell>
+                          {group.members_count}/{group.member_limit}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveUp(index)}
+                            disabled={index === 0}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveDown(index)}
+                            disabled={index === groupPriorities.length - 1}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
                 </SortableContext>
               </TableBody>

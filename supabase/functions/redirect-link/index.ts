@@ -9,9 +9,11 @@ interface GroupPriority {
   id: string;
   name: string;
   wa_group_id: string;
+  invite_code?: string;
   members_count: number;
   member_limit: number;
   priority: number;
+  click_limit?: number; // Limite de cliques para este grupo
 }
 
 Deno.serve(async (req) => {
@@ -84,31 +86,68 @@ Deno.serve(async (req) => {
       currentGroups?.map(g => [g.id, g]) || []
     );
 
-    // Ordenar grupos por prioridade e buscar o primeiro com vagas
+    // Ordenar grupos por prioridade
     const sortedGroups = (savedLink.group_priorities as GroupPriority[])
       .sort((a, b) => a.priority - b.priority);
 
     let selectedGroup = null;
+    let selectedGroupPriority = null;
+    
+    // Obter contador de cliques por grupo
+    const groupClicks = (savedLink.group_clicks as Record<string, number>) || {};
 
-    for (const priorityGroup of sortedGroups) {
-      const currentGroup = groupMap.get(priorityGroup.id);
-      if (!currentGroup) {
-        console.log(`⚠️ Grupo ${priorityGroup.name} não encontrado no banco`);
-        continue;
+    // Verificar estratégia de distribuição
+    const strategy = savedLink.distribution_strategy || 'member_limit';
+    console.log(`📊 Estratégia de distribuição: ${strategy}`);
+
+    if (strategy === 'click_limit') {
+      // Estratégia baseada em limite de cliques
+      for (const priorityGroup of sortedGroups) {
+        const currentGroup = groupMap.get(priorityGroup.id);
+        if (!currentGroup) {
+          console.log(`⚠️ Grupo ${priorityGroup.name} não encontrado no banco`);
+          continue;
+        }
+
+        const clickCount = groupClicks[priorityGroup.id] || 0;
+        const clickLimit = priorityGroup.click_limit || 0;
+        
+        console.log(`🔍 Verificando grupo ${currentGroup.name}:`, {
+          clicks: clickCount,
+          limit: clickLimit,
+          remaining: clickLimit - clickCount
+        });
+
+        if (clickLimit === 0 || clickCount < clickLimit) {
+          selectedGroup = currentGroup;
+          selectedGroupPriority = priorityGroup;
+          console.log(`✅ Grupo selecionado: ${selectedGroup.name}`);
+          break;
+        }
       }
+    } else {
+      // Estratégia baseada em vagas disponíveis (original)
+      for (const priorityGroup of sortedGroups) {
+        const currentGroup = groupMap.get(priorityGroup.id);
+        if (!currentGroup) {
+          console.log(`⚠️ Grupo ${priorityGroup.name} não encontrado no banco`);
+          continue;
+        }
 
-      const availableSlots = currentGroup.member_limit - currentGroup.members_count;
-      
-      console.log(`🔍 Verificando grupo ${currentGroup.name}:`, {
-        members: currentGroup.members_count,
-        limit: currentGroup.member_limit,
-        available: availableSlots
-      });
+        const availableSlots = currentGroup.member_limit - currentGroup.members_count;
+        
+        console.log(`🔍 Verificando grupo ${currentGroup.name}:`, {
+          members: currentGroup.members_count,
+          limit: currentGroup.member_limit,
+          available: availableSlots
+        });
 
-      if (availableSlots > 0) {
-        selectedGroup = currentGroup;
-        console.log(`✅ Grupo selecionado: ${selectedGroup.name}`);
-        break;
+        if (availableSlots > 0) {
+          selectedGroup = currentGroup;
+          selectedGroupPriority = priorityGroup;
+          console.log(`✅ Grupo selecionado: ${selectedGroup.name}`);
+          break;
+        }
       }
     }
 
@@ -141,15 +180,24 @@ Deno.serve(async (req) => {
       // Não falhar a requisição por erro no log
     }
 
-    // Atualizar contador de cliques
+    // Atualizar contadores de cliques
+    const updatedGroupClicks = { ...groupClicks };
+    if (selectedGroupPriority) {
+      updatedGroupClicks[selectedGroupPriority.id] = (updatedGroupClicks[selectedGroupPriority.id] || 0) + 1;
+    }
+
     await supabase
       .from('saved_redirect_links')
       .update({ 
-        total_clicks: (savedLink.total_clicks || 0) + 1 
+        total_clicks: (savedLink.total_clicks || 0) + 1,
+        group_clicks: updatedGroupClicks
       })
       .eq('id', savedLink.id);
 
-    console.log('📊 Clique registrado com sucesso');
+    console.log('📊 Clique registrado com sucesso', {
+      groupId: selectedGroupPriority?.id,
+      newCount: updatedGroupClicks[selectedGroupPriority?.id || '']
+    });
 
     // Usar invite_code se disponível, senão usar wa_group_id (remover @g.us)
     const groupCode = selectedGroup.invite_code || selectedGroup.wa_group_id.replace(/@g\.us$/, '');

@@ -397,6 +397,8 @@ export type Database = {
       saved_redirect_links: {
         Row: {
           created_at: string
+          distribution_strategy: string | null
+          group_clicks: Json | null
           group_priorities: Json
           id: string
           is_active: boolean
@@ -407,6 +409,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          distribution_strategy?: string | null
+          group_clicks?: Json | null
           group_priorities?: Json
           id?: string
           is_active?: boolean
@@ -417,6 +421,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          distribution_strategy?: string | null
+          group_clicks?: Json | null
           group_priorities?: Json
           id?: string
           is_active?: boolean
