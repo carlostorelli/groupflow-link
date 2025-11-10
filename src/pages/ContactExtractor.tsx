@@ -134,13 +134,9 @@ export default function ContactExtractor() {
       const headers = existingData[0] || [];
       
       // Mapear os contatos para o formato da planilha
-      // Coluna A (índice 0) = Nome
       // Coluna C (índice 2) = WhatsApp
       const contactRows = selectedContactsData.map(contact => {
         const row = new Array(headers.length).fill("");
-        
-        // Coluna A (índice 0) = Nome
-        row[0] = contact.name;
         
         // Coluna C (índice 2) = WhatsApp (como string, não número)
         row[2] = contact.phone;
