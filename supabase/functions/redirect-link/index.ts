@@ -151,8 +151,9 @@ Deno.serve(async (req) => {
 
     console.log('📊 Clique registrado com sucesso');
 
-    // Montar URL do WhatsApp
-    const whatsappUrl = `https://chat.whatsapp.com/${selectedGroup.wa_group_id}`;
+    // Montar URL do WhatsApp (remover @g.us se presente no wa_group_id)
+    const groupCode = selectedGroup.wa_group_id.replace(/@g\.us$/, '');
+    const whatsappUrl = `https://chat.whatsapp.com/${groupCode}`;
 
     console.log('🚀 Redirecionando para:', whatsappUrl);
 
