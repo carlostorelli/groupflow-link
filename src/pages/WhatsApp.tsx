@@ -20,10 +20,18 @@ export default function WhatsApp() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importedGroups, setImportedGroups] = useState<string[]>([]);
-  const [autoSync, setAutoSync] = useState(false);
+  const [autoSync, setAutoSync] = useState(() => {
+    const saved = localStorage.getItem('whatsapp-auto-sync');
+    return saved === 'true';
+  });
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [cleaning, setCleaning] = useState(false);
   const { toast } = useToast();
+
+  // Persistir estado do auto-sync
+  useEffect(() => {
+    localStorage.setItem('whatsapp-auto-sync', String(autoSync));
+  }, [autoSync]);
 
   // Carregar estado da conexão do banco ao montar
   useEffect(() => {
@@ -90,21 +98,23 @@ export default function WhatsApp() {
   // Auto-sync de grupos a cada 5 minutos
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    let importCalled = false;
     
-    if (autoSync && connected && instanceName) {
+    if (autoSync && connected && instanceName && instanceId) {
       console.log('🔄 Auto-sync ativado - sincronizando a cada 5 minutos');
       
       // Sync imediato ao ativar (só se não estiver importando)
-      if (!importing) {
+      if (!importing && !importCalled) {
+        importCalled = true;
         handleImportGroups(true);
       }
       
       // Sync periódico
-      interval = setInterval(() => {
+      interval = setInterval(async () => {
         console.log('⏰ Executando auto-sync agendado...');
         // Verificar se não está importando antes de executar
         if (!importing) {
-          handleImportGroups(true);
+          await handleImportGroups(true);
         } else {
           console.log('⏸️ Auto-sync aguardando importação em andamento...');
         }
@@ -117,7 +127,7 @@ export default function WhatsApp() {
         clearInterval(interval);
       }
     };
-  }, [autoSync, connected, instanceName]);
+  }, [autoSync, connected, instanceName, instanceId]);
 
   const updateInstanceStatus = async (status: 'pending' | 'connected' | 'disconnected') => {
     try {
