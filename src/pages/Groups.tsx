@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw, Hash, Star } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw, Hash, Star, BarChart3, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +82,13 @@ export default function Groups() {
   const [editInviteCodeDialogOpen, setEditInviteCodeDialogOpen] = useState(false);
   const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<Group | null>(null);
   const [inviteCodeInput, setInviteCodeInput] = useState('');
+  
+  // Poll states
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [sendingPoll, setSendingPoll] = useState(false);
+  
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -1173,6 +1180,146 @@ export default function Groups() {
     setMediaFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const addPollOption = () => {
+    if (pollOptions.length < 12) {
+      setPollOptions([...pollOptions, ""]);
+    } else {
+      toast({
+        title: "Limite atingido",
+        description: "Você pode adicionar no máximo 12 opções",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(pollOptions.filter((_, i) => i !== index));
+    }
+  };
+
+  const updatePollOption = (index: number, value: string) => {
+    const newOptions = [...pollOptions];
+    newOptions[index] = value;
+    setPollOptions(newOptions);
+  };
+
+  const handleSendPoll = async () => {
+    if (!pollQuestion.trim()) {
+      toast({
+        title: "Pergunta obrigatória",
+        description: "Digite a pergunta da enquete",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const validOptions = pollOptions.filter(opt => opt.trim());
+    if (validOptions.length < 2) {
+      toast({
+        title: "Opções insuficientes",
+        description: "A enquete precisa ter pelo menos 2 opções",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedGroups.length === 0) {
+      toast({
+        title: "Selecione grupos",
+        description: "Selecione pelo menos um grupo para enviar a enquete",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingPoll(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: instances } = await supabase
+        .from('instances')
+        .select('instance_id')
+        .eq('user_id', user.id)
+        .eq('status', 'connected')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!instances || instances.length === 0) {
+        throw new Error('Nenhuma instância conectada');
+      }
+
+      const instanceName = instances[0].instance_id;
+      const selectedGroupsData = groups.filter(g => selectedGroups.includes(g.id));
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errorDetails: string[] = [];
+
+      for (const group of selectedGroupsData) {
+        try {
+          const { error } = await supabase.functions.invoke("evolution-send-poll", {
+            body: {
+              instanceName,
+              groupId: group.wa_group_id,
+              question: pollQuestion,
+              options: validOptions,
+            },
+          });
+
+          if (error) throw error;
+          successCount++;
+          
+          // Aguardar 1 segundo entre envios
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error: any) {
+          errorCount++;
+          const errorMsg = error?.message || 'Erro desconhecido';
+          errorDetails.push(`${group.name}: ${errorMsg}`);
+          console.error(`Erro ao enviar para grupo ${group.name}:`, error);
+        }
+      }
+
+      if (errorDetails.length > 0) {
+        toast({
+          title: successCount > 0 ? "Enquete parcialmente enviada" : "Erro",
+          description: (
+            <div className="space-y-1">
+              <p>{successCount} grupo(s) receberam, {errorCount} falharam:</p>
+              <ul className="list-disc pl-4 text-xs">
+                {errorDetails.slice(0, 3).map((detail, i) => (
+                  <li key={i}>{detail}</li>
+                ))}
+                {errorDetails.length > 3 && <li>...e mais {errorDetails.length - 3}</li>}
+              </ul>
+            </div>
+          ),
+          variant: successCount === 0 ? "destructive" : "default"
+        });
+      } else {
+        toast({
+          title: "Enquete enviada!",
+          description: `Enquete enviada para ${successCount} grupo(s) com sucesso`,
+        });
+      }
+
+      setPollDialogOpen(false);
+      setPollQuestion("");
+      setPollOptions(["", ""]);
+      setSelectedGroups([]);
+    } catch (error: any) {
+      console.error("Erro ao enviar enquete:", error);
+      toast({
+        title: "Erro ao enviar enquete",
+        description: error.message || "Tente novamente",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingPoll(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { label: string; className: string }> = {
       open: { label: "Aberto", className: "bg-gradient-success" },
@@ -1410,6 +1557,75 @@ export default function Groups() {
                   disabled={!groupPhoto}
                 >
                   Atualizar Foto
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Enviar Enquete
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Criar e Enviar Enquete</DialogTitle>
+                <DialogDescription>
+                  Crie uma enquete e envie para os grupos selecionados
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="poll-question">Pergunta da Enquete</Label>
+                  <Textarea
+                    id="poll-question"
+                    placeholder="Digite a pergunta da enquete"
+                    value={pollQuestion}
+                    onChange={(e) => setPollQuestion(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Opções de Resposta (mín: 2, máx: 12)</Label>
+                  {pollOptions.map((option, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        placeholder={`Opção ${index + 1}`}
+                        value={option}
+                        onChange={(e) => updatePollOption(index, e.target.value)}
+                      />
+                      {pollOptions.length > 2 && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removePollOption(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {pollOptions.length < 12 && (
+                    <Button
+                      variant="outline"
+                      onClick={addPollOption}
+                      className="w-full"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar Opção
+                    </Button>
+                  )}
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleSendPoll}
+                  disabled={sendingPoll || selectedGroups.length === 0}
+                >
+                  {sendingPoll ? "Enviando..." : `Enviar Enquete para ${selectedGroups.length} Grupo(s)`}
                 </Button>
               </div>
             </DialogContent>
