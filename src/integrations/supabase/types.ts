@@ -59,6 +59,229 @@ export type Database = {
         }
         Relationships: []
       }
+      affiliate_credentials: {
+        Row: {
+          auto_generate: boolean
+          created_at: string
+          credentials: Json
+          id: string
+          is_active: boolean
+          store: Database["public"]["Enums"]["store_key"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_generate?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          store: Database["public"]["Enums"]["store_key"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_generate?: boolean
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          store?: Database["public"]["Enums"]["store_key"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      automations: {
+        Row: {
+          categories: string[]
+          created_at: string
+          ctas: string[]
+          end_time: string
+          filter_type: Database["public"]["Enums"]["filter_type"]
+          id: string
+          interval_minutes: number
+          last_error: string | null
+          last_run_at: string | null
+          max_price: number | null
+          min_discount: number | null
+          min_price: number | null
+          mode: Database["public"]["Enums"]["automation_mode"]
+          monitor_groups: string[] | null
+          name: string
+          next_run_at: string | null
+          priority: Database["public"]["Enums"]["priority_type"]
+          send_groups: string[]
+          start_time: string
+          status: Database["public"]["Enums"]["automation_status"]
+          stores: Database["public"]["Enums"]["store_key"][]
+          texts: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categories?: string[]
+          created_at?: string
+          ctas?: string[]
+          end_time?: string
+          filter_type?: Database["public"]["Enums"]["filter_type"]
+          id?: string
+          interval_minutes?: number
+          last_error?: string | null
+          last_run_at?: string | null
+          max_price?: number | null
+          min_discount?: number | null
+          min_price?: number | null
+          mode?: Database["public"]["Enums"]["automation_mode"]
+          monitor_groups?: string[] | null
+          name: string
+          next_run_at?: string | null
+          priority?: Database["public"]["Enums"]["priority_type"]
+          send_groups?: string[]
+          start_time?: string
+          status?: Database["public"]["Enums"]["automation_status"]
+          stores?: Database["public"]["Enums"]["store_key"][]
+          texts?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          categories?: string[]
+          created_at?: string
+          ctas?: string[]
+          end_time?: string
+          filter_type?: Database["public"]["Enums"]["filter_type"]
+          id?: string
+          interval_minutes?: number
+          last_error?: string | null
+          last_run_at?: string | null
+          max_price?: number | null
+          min_discount?: number | null
+          min_price?: number | null
+          mode?: Database["public"]["Enums"]["automation_mode"]
+          monitor_groups?: string[] | null
+          name?: string
+          next_run_at?: string | null
+          priority?: Database["public"]["Enums"]["priority_type"]
+          send_groups?: string[]
+          start_time?: string
+          status?: Database["public"]["Enums"]["automation_status"]
+          stores?: Database["public"]["Enums"]["store_key"][]
+          texts?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deals: {
+        Row: {
+          affiliate_url: string | null
+          automation_id: string
+          category: string | null
+          created_at: string
+          discount: number | null
+          id: string
+          image_url: string | null
+          old_price: number | null
+          price: number
+          product_url: string
+          store: Database["public"]["Enums"]["store_key"]
+          title: string
+          user_id: string
+        }
+        Insert: {
+          affiliate_url?: string | null
+          automation_id: string
+          category?: string | null
+          created_at?: string
+          discount?: number | null
+          id?: string
+          image_url?: string | null
+          old_price?: number | null
+          price: number
+          product_url: string
+          store: Database["public"]["Enums"]["store_key"]
+          title: string
+          user_id: string
+        }
+        Update: {
+          affiliate_url?: string | null
+          automation_id?: string
+          category?: string | null
+          created_at?: string
+          discount?: number | null
+          id?: string
+          image_url?: string | null
+          old_price?: number | null
+          price?: number
+          product_url?: string
+          store?: Database["public"]["Enums"]["store_key"]
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_logs: {
+        Row: {
+          affiliate_url: string | null
+          automation_id: string
+          automation_name: string
+          created_at: string
+          error: string | null
+          group_id: string
+          group_name: string | null
+          id: string
+          product_url: string
+          status: Database["public"]["Enums"]["dispatch_status"]
+          store: Database["public"]["Enums"]["store_key"]
+          user_id: string
+        }
+        Insert: {
+          affiliate_url?: string | null
+          automation_id: string
+          automation_name: string
+          created_at?: string
+          error?: string | null
+          group_id: string
+          group_name?: string | null
+          id?: string
+          product_url: string
+          status?: Database["public"]["Enums"]["dispatch_status"]
+          store: Database["public"]["Enums"]["store_key"]
+          user_id: string
+        }
+        Update: {
+          affiliate_url?: string | null
+          automation_id?: string
+          automation_name?: string
+          created_at?: string
+          error?: string | null
+          group_id?: string
+          group_name?: string | null
+          id?: string
+          product_url?: string
+          status?: Database["public"]["Enums"]["dispatch_status"]
+          store?: Database["public"]["Enums"]["store_key"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_logs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           content: string
@@ -566,6 +789,10 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      automation_mode: "search" | "monitor"
+      automation_status: "active" | "paused"
+      dispatch_status: "sent" | "skipped" | "error"
+      filter_type: "light" | "heavy"
       group_status: "open" | "closed" | "full"
       instance_status: "connected" | "disconnected" | "pending"
       job_action_type:
@@ -576,6 +803,8 @@ export type Database = {
         | "change_group_name"
         | "change_group_photo"
       job_status: "pending" | "running" | "done" | "failed"
+      priority_type: "discount" | "price"
+      store_key: "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress"
       user_plan: "free" | "pro" | "elite"
     }
     CompositeTypes: {
@@ -705,6 +934,10 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      automation_mode: ["search", "monitor"],
+      automation_status: ["active", "paused"],
+      dispatch_status: ["sent", "skipped", "error"],
+      filter_type: ["light", "heavy"],
       group_status: ["open", "closed", "full"],
       instance_status: ["connected", "disconnected", "pending"],
       job_action_type: [
@@ -716,6 +949,8 @@ export const Constants = {
         "change_group_photo",
       ],
       job_status: ["pending", "running", "done", "failed"],
+      priority_type: ["discount", "price"],
+      store_key: ["shopee", "amazon", "magalu", "ml", "shein", "aliexpress"],
       user_plan: ["free", "pro", "elite"],
     },
   },

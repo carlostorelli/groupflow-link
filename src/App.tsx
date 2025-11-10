@@ -17,6 +17,9 @@ import RedirectLink from "./pages/RedirectLink";
 import Jobs from "./pages/Jobs";
 import ContactExtractor from "./pages/ContactExtractor";
 import AITools from "./pages/AITools";
+import OfferAutomations from "./pages/OfferAutomations";
+import AffiliatePrograms from "./pages/AffiliatePrograms";
+import AutomationLogs from "./pages/AutomationLogs";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -122,6 +125,39 @@ const App = () => (
                   <ProtectedRoute>
                     <AppLayout>
                       <AITools />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/offer-automations"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <OfferAutomations />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/affiliate-programs"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <AffiliatePrograms />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/automation-logs"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <AutomationLogs />
                     </AppLayout>
                   </ProtectedRoute>
                 }
