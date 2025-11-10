@@ -194,30 +194,22 @@ export default function ContactExtractor() {
       const headers = existingData[0] || [];
       
       // Mapear os contatos para o formato da planilha
-      // Tentando detectar as colunas mais comuns
+      // Coluna A (índice 0) = Nome
+      // Coluna C (índice 2) = WhatsApp
       const contactRows = selectedContactsData.map(contact => {
-        const row: any = {};
+        const row = new Array(headers.length).fill("");
         
-        // Tentar preencher baseado em nomes comuns de colunas
-        headers.forEach((header: string) => {
-          const headerLower = header?.toLowerCase() || "";
-          
-          if (headerLower.includes("nome") || headerLower.includes("name")) {
-            row[header] = contact.name;
-          } else if (headerLower.includes("telefone") || headerLower.includes("phone") || headerLower.includes("número")) {
-            row[header] = contact.phone;
-          } else if (headerLower.includes("admin") || headerLower.includes("administrador")) {
-            row[header] = contact.isAdmin ? "Sim" : "Não";
-          } else {
-            row[header] = ""; // Preencher outras colunas com vazio
-          }
-        });
+        // Coluna A (índice 0) = Nome
+        row[0] = contact.name;
+        
+        // Coluna C (índice 2) = WhatsApp
+        row[2] = contact.phone;
         
         return row;
       });
       
       // Criar nova planilha com os dados
-      const newData = [headers, ...contactRows.map(row => headers.map((h: string) => row[h] || ""))];
+      const newData = [headers, ...contactRows];
       const newWorksheet = XLSX.utils.aoa_to_sheet(newData);
       
       // Substituir a planilha no workbook

@@ -169,21 +169,38 @@ serve(async (req) => {
     // Extrair participantes
     const participants = targetGroup.participants || [];
     
+    console.log('📋 Participantes brutos:', JSON.stringify(participants.slice(0, 2), null, 2));
+    
     const contacts = participants.map((p: any) => {
-      // Limpar o número de telefone removendo todos os sufixos do WhatsApp
-      const phoneNumber = p.id
+      // O ID completo do WhatsApp vem no formato: número@sufixo
+      let phoneNumber = p.id || '';
+      
+      // Remover todos os sufixos do WhatsApp
+      phoneNumber = phoneNumber
         .replace('@s.whatsapp.net', '')
         .replace('@c.us', '')
         .replace('@lid', '')
-        .replace('@g.us', '');
+        .replace('@g.us', '')
+        .replace(':',''); // Remover também dois pontos se houver
       
-      // Usar o notify name se disponível, senão o name, senão o número
-      const displayName = p.notify || p.name || phoneNumber;
+      // Tentar extrair o número real do participant se disponível em outros campos
+      const actualPhone = p.participant || p.jid || phoneNumber;
+      const cleanPhone = actualPhone
+        .replace('@s.whatsapp.net', '')
+        .replace('@c.us', '')
+        .replace('@lid', '')
+        .replace('@g.us', '')
+        .replace(':','');
+      
+      // Usar o notify name se disponível, senão o name, senão deixar vazio
+      const displayName = p.notify || p.name || p.verifiedName || '';
+      
+      console.log(`👤 Contato: Nome="${displayName}" | Tel="${cleanPhone}" | ID original="${p.id}"`);
       
       return {
         id: p.id,
         name: displayName,
-        phone: phoneNumber,
+        phone: cleanPhone,
         isAdmin: p.admin === 'admin' || p.admin === 'superadmin' || false,
       };
     });
