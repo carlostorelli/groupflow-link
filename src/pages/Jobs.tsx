@@ -45,7 +45,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ScheduleMultipleGroups } from "@/components/ScheduleMultipleGroups";
@@ -78,6 +78,7 @@ export default function Jobs() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [autoNumberGroups, setAutoNumberGroups] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   // Carregar jobs do banco de dados
@@ -188,6 +189,7 @@ export default function Jobs() {
     setMediaFile(null);
     setSelectedGroups([]);
     setAutoNumberGroups(false);
+    setSearchTerm("");
     setDialogOpen(false);
     setEditingJobId(null);
   };
@@ -410,27 +412,40 @@ export default function Jobs() {
 
               <div className="space-y-2">
                 <Label>Selecionar Grupos</Label>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar grupos..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
                 <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
                   {groups.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
                       Nenhum grupo disponível. Importe grupos primeiro.
                     </p>
                   ) : (
-                    groups.map((group) => (
-                      <div key={group.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`group-${group.id}`}
-                          checked={selectedGroups.includes(group.id)}
-                          onCheckedChange={() => toggleGroup(group.id)}
-                        />
-                        <Label
-                          htmlFor={`group-${group.id}`}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          {group.name}
-                        </Label>
-                      </div>
-                    ))
+                    groups
+                      .filter(group => 
+                        group.name.toLowerCase().includes(searchTerm.toLowerCase())
+                      )
+                      .map((group) => (
+                        <div key={group.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`group-${group.id}`}
+                            checked={selectedGroups.includes(group.id)}
+                            onCheckedChange={() => toggleGroup(group.id)}
+                          />
+                          <Label
+                            htmlFor={`group-${group.id}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {group.name}
+                          </Label>
+                        </div>
+                      ))
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">

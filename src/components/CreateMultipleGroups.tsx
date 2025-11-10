@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, X, Upload, AlertCircle } from "lucide-react";
+import { Plus, X, Upload, AlertCircle, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function CreateMultipleGroups() {
@@ -26,6 +26,7 @@ export function CreateMultipleGroups() {
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   // Carregar grupos disponíveis
@@ -173,6 +174,7 @@ export function CreateMultipleGroups() {
       setDescription("");
       setStatus("open");
       setGroupPhoto(null);
+      setSearchTerm("");
       setDialogOpen(false);
 
     } catch (error: any) {
@@ -210,27 +212,40 @@ export function CreateMultipleGroups() {
 
           <div className="space-y-2">
             <Label>Selecionar Grupos (você é admin)</Label>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar grupos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
             <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
               {availableGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhum grupo disponível. Sincronize seus grupos primeiro.
                 </p>
               ) : (
-                availableGroups.map((group) => (
-                  <div key={group.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`group-${group.id}`}
-                      checked={selectedGroups.includes(group.id)}
-                      onCheckedChange={() => toggleGroup(group.id)}
-                    />
-                    <Label
-                      htmlFor={`group-${group.id}`}
-                      className="text-sm font-normal cursor-pointer flex-1"
-                    >
-                      {group.name}
-                    </Label>
-                  </div>
-                ))
+                availableGroups
+                  .filter(group => 
+                    group.name.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((group) => (
+                    <div key={group.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`group-${group.id}`}
+                        checked={selectedGroups.includes(group.id)}
+                        onCheckedChange={() => toggleGroup(group.id)}
+                      />
+                      <Label
+                        htmlFor={`group-${group.id}`}
+                        className="text-sm font-normal cursor-pointer flex-1"
+                      >
+                        {group.name}
+                      </Label>
+                    </div>
+                  ))
               )}
             </div>
             <p className="text-xs text-muted-foreground">
