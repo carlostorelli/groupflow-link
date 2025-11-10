@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, AlertCircle, X, Upload, Search } from "lucide-react";
+import { Plus, AlertCircle, X, Upload, Search, Star } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function ScheduleMultipleGroups() {
@@ -42,7 +42,7 @@ export function ScheduleMultipleGroups() {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name, wa_group_id')
+        .select('id, name, wa_group_id, is_favorite')
         .order('is_favorite', { ascending: false })
         .order('name', { ascending: true });
 
@@ -316,8 +316,11 @@ export function ScheduleMultipleGroups() {
                       />
                       <Label
                         htmlFor={`group-${group.id}`}
-                        className="text-sm font-normal cursor-pointer flex-1"
+                        className="text-sm font-normal cursor-pointer flex-1 flex items-center gap-1.5"
                       >
+                        {group.is_favorite && (
+                          <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                        )}
                         {group.name}
                       </Label>
                     </div>
