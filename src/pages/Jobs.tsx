@@ -45,7 +45,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash, Search, BarChart3, Trash2 } from "lucide-react";
+import { Calendar, Clock, Plus, Sparkles, Loader2, AtSign, Check, AlertCircle, Hash, Search, BarChart3, Trash2, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ScheduleMultipleGroups } from "@/components/ScheduleMultipleGroups";
@@ -63,6 +63,7 @@ interface Group {
   id: string;
   name: string;
   wa_group_id: string;
+  is_favorite?: boolean;
 }
 
 export default function Jobs() {
@@ -106,7 +107,7 @@ export default function Jobs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name, wa_group_id')
+        .select('id, name, wa_group_id, is_favorite')
         .order('is_favorite', { ascending: false })
         .order('name', { ascending: true });
 
@@ -508,8 +509,11 @@ export default function Jobs() {
                           />
                           <Label
                             htmlFor={`group-${group.id}`}
-                            className="text-sm font-normal cursor-pointer"
+                            className="text-sm font-normal cursor-pointer flex items-center gap-2"
                           >
+                            {group.is_favorite && (
+                              <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                            )}
                             {group.name}
                           </Label>
                         </div>
