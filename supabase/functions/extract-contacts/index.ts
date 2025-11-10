@@ -170,11 +170,19 @@ serve(async (req) => {
     const participants = targetGroup.participants || [];
     
     const contacts = participants.map((p: any) => {
-      const phoneNumber = p.id.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      // Limpar o número de telefone removendo todos os sufixos do WhatsApp
+      const phoneNumber = p.id
+        .replace('@s.whatsapp.net', '')
+        .replace('@c.us', '')
+        .replace('@lid', '')
+        .replace('@g.us', '');
+      
+      // Usar o notify name se disponível, senão o name, senão o número
+      const displayName = p.notify || p.name || phoneNumber;
       
       return {
         id: p.id,
-        name: p.notify || p.name || phoneNumber,
+        name: displayName,
         phone: phoneNumber,
         isAdmin: p.admin === 'admin' || p.admin === 'superadmin' || false,
       };
