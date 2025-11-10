@@ -18,7 +18,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Download, Upload, Loader2, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 
 interface Contact {
   id: string;
@@ -28,12 +27,10 @@ interface Contact {
 }
 
 export default function ContactExtractor() {
-  const [groupLink, setGroupLink] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [filterAdminsOnly, setFilterAdminsOnly] = useState(false);
-  const [useGroupSelector, setUseGroupSelector] = useState(true);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [adminGroups, setAdminGroups] = useState<any[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
@@ -69,7 +66,7 @@ export default function ContactExtractor() {
   }, [toast]);
 
   const handleExtract = async () => {
-    if (useGroupSelector && !selectedGroupId) {
+    if (!selectedGroupId) {
       toast({
         variant: "destructive",
         title: "Grupo obrigatório",
@@ -78,45 +75,30 @@ export default function ContactExtractor() {
       return;
     }
 
-    if (!useGroupSelector && !groupLink.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Link obrigatório",
-        description: "Insira o link do grupo para extrair contatos",
-      });
-      return;
-    }
-
     setIsExtracting(true);
     
     try {
-      let requestBody;
-      
-      if (useGroupSelector) {
-        const selectedGroup = adminGroups.find(g => g.id === selectedGroupId);
-        if (!selectedGroup) {
-          throw new Error("Grupo não encontrado");
-        }
-
-        // Buscar instância do grupo
-        const { data: instanceData, error: instanceError } = await supabase
-          .from("instances")
-          .select("instance_id")
-          .eq("id", selectedGroup.instance_id)
-          .single();
-
-        if (instanceError || !instanceData) {
-          throw new Error("Instância não encontrada");
-        }
-
-        requestBody = {
-          useGroupId: true,
-          instanceName: instanceData.instance_id,
-          groupId: selectedGroup.wa_group_id,
-        };
-      } else {
-        requestBody = { groupLink };
+      const selectedGroup = adminGroups.find(g => g.id === selectedGroupId);
+      if (!selectedGroup) {
+        throw new Error("Grupo não encontrado");
       }
+
+      // Buscar instância do grupo
+      const { data: instanceData, error: instanceError } = await supabase
+        .from("instances")
+        .select("instance_id")
+        .eq("id", selectedGroup.instance_id)
+        .single();
+
+      if (instanceError || !instanceData) {
+        throw new Error("Instância não encontrada");
+      }
+
+      const requestBody = {
+        useGroupId: true,
+        instanceName: instanceData.instance_id,
+        groupId: selectedGroup.wa_group_id,
+      };
 
       const { data, error } = await supabase.functions.invoke("extract-contacts", {
         body: requestBody,
@@ -299,71 +281,47 @@ export default function ContactExtractor() {
         <CardHeader>
           <CardTitle>Extrair Contatos do Grupo</CardTitle>
           <CardDescription>
-            Insira o link do grupo para extrair todos os contatos
+            Selecione um grupo que você administra para extrair todos os contatos
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <Switch
-              id="use-group-selector"
-              checked={useGroupSelector}
-              onCheckedChange={setUseGroupSelector}
-            />
-            <Label htmlFor="use-group-selector">
-              Usar apenas meus grupos (onde sou admin)
-            </Label>
+          <div className="space-y-2">
+            <Label htmlFor="group-select">Selecione o Grupo</Label>
+            <Select
+              value={selectedGroupId}
+              onValueChange={setSelectedGroupId}
+              disabled={isExtracting || loadingGroups}
+            >
+              <SelectTrigger id="group-select">
+                <SelectValue placeholder={loadingGroups ? "Carregando grupos..." : "Selecione um grupo"} />
+              </SelectTrigger>
+              <SelectContent>
+                {loadingGroups ? (
+                  <SelectItem value="loading" disabled>
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                    Carregando...
+                  </SelectItem>
+                ) : adminGroups.length === 0 ? (
+                  <SelectItem value="empty" disabled>
+                    Nenhum grupo disponível
+                  </SelectItem>
+                ) : (
+                  adminGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name} ({group.members_count} membros)
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Apenas grupos onde você é administrador
+            </p>
           </div>
-
-          {useGroupSelector ? (
-            <div className="space-y-2">
-              <Label htmlFor="group-select">Selecione o Grupo</Label>
-              <Select
-                value={selectedGroupId}
-                onValueChange={setSelectedGroupId}
-                disabled={isExtracting || loadingGroups}
-              >
-                <SelectTrigger id="group-select">
-                  <SelectValue placeholder={loadingGroups ? "Carregando grupos..." : "Selecione um grupo"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadingGroups ? (
-                    <SelectItem value="loading" disabled>
-                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                      Carregando...
-                    </SelectItem>
-                  ) : adminGroups.length === 0 ? (
-                    <SelectItem value="empty" disabled>
-                      Nenhum grupo disponível
-                    </SelectItem>
-                  ) : (
-                    adminGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name} ({group.members_count} membros)
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Apenas grupos onde você é administrador
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="group-link">Link do Grupo WhatsApp</Label>
-              <Input
-                id="group-link"
-                placeholder="https://chat.whatsapp.com/..."
-                value={groupLink}
-                onChange={(e) => setGroupLink(e.target.value)}
-                disabled={isExtracting}
-              />
-            </div>
-          )}
 
           <Button
             onClick={handleExtract}
-            disabled={isExtracting || (useGroupSelector ? !selectedGroupId : !groupLink.trim()) || loadingGroups}
+            disabled={isExtracting || !selectedGroupId || loadingGroups}
             className="w-full"
           >
             {isExtracting ? (
