@@ -402,6 +402,7 @@ export type Database = {
           group_priorities: Json
           id: string
           is_active: boolean
+          name: string | null
           slug: string
           total_clicks: number
           updated_at: string
@@ -414,6 +415,7 @@ export type Database = {
           group_priorities?: Json
           id?: string
           is_active?: boolean
+          name?: string | null
           slug: string
           total_clicks?: number
           updated_at?: string
@@ -426,6 +428,7 @@ export type Database = {
           group_priorities?: Json
           id?: string
           is_active?: boolean
+          name?: string | null
           slug?: string
           total_clicks?: number
           updated_at?: string

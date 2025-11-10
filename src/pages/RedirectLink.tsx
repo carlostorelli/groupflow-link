@@ -55,6 +55,7 @@ interface Group {
 
 export default function RedirectLink() {
   const [slug, setSlug] = useState("");
+  const [linkName, setLinkName] = useState("");
   const [allGroups, setAllGroups] = useState<Group[]>([]);
   const [groupPriorities, setGroupPriorities] = useState<Group[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
@@ -63,6 +64,7 @@ export default function RedirectLink() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [distributionStrategy, setDistributionStrategy] = useState<'member_limit' | 'click_limit'>('click_limit');
+  const [editingLink, setEditingLink] = useState<any>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -165,6 +167,19 @@ export default function RedirectLink() {
     });
   };
 
+  const generateRandomSlug = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let randomSlug = '';
+    for (let i = 0; i < 8; i++) {
+      randomSlug += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setSlug(randomSlug);
+    toast({
+      title: "Slug gerada!",
+      description: `Slug aleatória criada: ${randomSlug}`,
+    });
+  };
+
   const moveUp = (index: number) => {
     if (index === 0) return;
     const newPriorities = [...groupPriorities];
@@ -194,6 +209,15 @@ export default function RedirectLink() {
   };
 
   const handleCreateLink = async () => {
+    if (!linkName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Nome obrigatório",
+        description: "Por favor, dê um nome para seu redirecionamento",
+      });
+      return;
+    }
+
     if (!slug.trim()) {
       toast({
         variant: "destructive",
@@ -263,6 +287,7 @@ export default function RedirectLink() {
         .from('saved_redirect_links')
         .insert({
           user_id: user?.id,
+          name: linkName.trim(),
           slug: slug.toLowerCase(),
           distribution_strategy: distributionStrategy,
           group_priorities: groupPriorities.map(g => ({
@@ -283,6 +308,7 @@ export default function RedirectLink() {
       if (error) throw error;
 
       // Limpar form
+      setLinkName("");
       setSlug("");
       setGroupPriorities([]);
       setSelectedGroupIds([]);
@@ -357,6 +383,19 @@ export default function RedirectLink() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="linkName">Nome do Redirecionamento</Label>
+              <Input
+                id="linkName"
+                placeholder="Ex: Campanha Black Friday 2025"
+                value={linkName}
+                onChange={(e) => setLinkName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Nome para identificar facilmente seu link
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="slug">Slug do Link</Label>
               <div className="flex gap-2">
                 <span className="flex items-center px-3 bg-secondary rounded-l-lg text-muted-foreground">
@@ -367,8 +406,17 @@ export default function RedirectLink() {
                   placeholder="meu-grupo"
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
-                  className="flex-1 rounded-l-none"
+                  className="flex-1 rounded-l-none rounded-r-none border-r-0"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={generateRandomSlug}
+                  className="rounded-l-none"
+                  title="Gerar slug aleatória"
+                >
+                  🎲
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
                 Use apenas letras minúsculas, números e hífens
@@ -471,10 +519,10 @@ export default function RedirectLink() {
 
             <Button 
               onClick={handleCreateLink} 
-              disabled={loading || !slug.trim() || groupPriorities.length === 0} 
+              disabled={loading || !linkName.trim() || !slug.trim() || groupPriorities.length === 0} 
               className="w-full"
             >
-              {loading ? "Salvando..." : "Criar e Salvar Link"}
+              {loading ? "Salvando..." : editingLink ? "Atualizar Link" : "Criar e Salvar Link"}
             </Button>
           </CardContent>
         </Card>
@@ -492,8 +540,9 @@ export default function RedirectLink() {
                 <div key={link.id} className="p-4 bg-background rounded-lg border">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
+                      <h3 className="font-medium text-sm mb-1">{link.name || 'Sem nome'}</h3>
                       <div className="flex items-center gap-2 mb-1">
-                        <code className="text-sm font-medium">/r/{link.slug}</code>
+                        <code className="text-xs text-muted-foreground">/r/{link.slug}</code>
                         {link.is_active && (
                           <Badge variant="outline" className="text-xs">Ativo</Badge>
                         )}
