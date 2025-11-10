@@ -107,44 +107,59 @@ Deno.serve(async (req) => {
               throw new Error('Mensagens não podem ser enviadas em grupos fechados');
             }
             if (job.action_type === 'send_message') {
-              // Processar menções
-              let mentions: string[] | undefined = undefined;
-              const message = job.payload.message || '';
-              
-              if (message.includes('@todos')) {
-                // Buscar todos os participantes do grupo
-                const { data: participantsData, error: participantsError } = await supabase.functions.invoke('evolution-fetch-group-participants', {
+              // Check if it's a poll
+              if (job.payload.type === 'poll') {
+                const { data: pollData, error: pollError } = await supabase.functions.invoke('evolution-send-poll', {
                   body: {
-                    instanceName,
-                    groupId: group.wa_group_id,
+                    instanceName: job.payload.instanceName,
+                    groupId: job.payload.groupId,
+                    question: job.payload.question,
+                    options: job.payload.options,
                   }
                 });
 
-                if (participantsError) {
-                  console.error(`❌ Erro ao buscar participantes:`, participantsError);
-                } else if (participantsData?.participants && Array.isArray(participantsData.participants)) {
-                  // Extrair apenas os números (remover @s.whatsapp.net) e remover duplicatas
-                  const phoneNumbers = participantsData.participants
-                    .filter((p: any) => p && typeof p === 'string' && p.includes('@'))
-                    .map((p: string) => p.split('@')[0]);
-                  
-                  // Remover duplicatas
-                  mentions = Array.from(new Set(phoneNumbers));
-                  console.log(`📢 ${mentions.length} menções únicas processadas`);
+                if (pollError) throw pollError;
+                if (pollData?.error) throw new Error(pollData.error);
+              } else {
+                // Processar menções
+                let mentions: string[] | undefined = undefined;
+                const message = job.payload.message || '';
+                
+                if (message.includes('@todos')) {
+                  // Buscar todos os participantes do grupo
+                  const { data: participantsData, error: participantsError } = await supabase.functions.invoke('evolution-fetch-group-participants', {
+                    body: {
+                      instanceName,
+                      groupId: group.wa_group_id,
+                    }
+                  });
+
+                  if (participantsError) {
+                    console.error(`❌ Erro ao buscar participantes:`, participantsError);
+                  } else if (participantsData?.participants && Array.isArray(participantsData.participants)) {
+                    // Extrair apenas os números (remover @s.whatsapp.net) e remover duplicatas
+                    const phoneNumbers = participantsData.participants
+                      .filter((p: any) => p && typeof p === 'string' && p.includes('@'))
+                      .map((p: string) => p.split('@')[0]);
+                    
+                    // Remover duplicatas
+                    mentions = Array.from(new Set(phoneNumbers));
+                    console.log(`📢 ${mentions.length} menções únicas processadas`);
+                  }
                 }
+
+                const { data: sendData, error: sendError } = await supabase.functions.invoke('evolution-send-message', {
+                  body: {
+                    instanceName,
+                    groupId: group.wa_group_id,
+                    message: message,
+                    mentions: mentions,
+                  }
+                });
+
+                if (sendError) throw sendError;
+                if (sendData?.error) throw new Error(sendData.error);
               }
-
-              const { data: sendData, error: sendError } = await supabase.functions.invoke('evolution-send-message', {
-                body: {
-                  instanceName,
-                  groupId: group.wa_group_id,
-                  message: message,
-                  mentions: mentions,
-                }
-              });
-
-              if (sendError) throw sendError;
-              if (sendData?.error) throw new Error(sendData.error);
             } else if (job.action_type === 'update_description') {
               const { data: descData, error: descError } = await supabase.functions.invoke('evolution-update-group-description', {
                 body: {

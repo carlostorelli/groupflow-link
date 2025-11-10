@@ -17,6 +17,7 @@ import RedirectLink from "./pages/RedirectLink";
 import Jobs from "./pages/Jobs";
 import ContactExtractor from "./pages/ContactExtractor";
 import AITools from "./pages/AITools";
+import Polls from "./pages/Polls";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -122,6 +123,17 @@ const App = () => (
                   <ProtectedRoute>
                     <AppLayout>
                       <AITools />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/polls"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Polls />
                     </AppLayout>
                   </ProtectedRoute>
                 }

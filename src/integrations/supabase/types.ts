@@ -203,6 +203,7 @@ export type Database = {
           error_message: string | null
           id: string
           payload: Json
+          poll_id: string | null
           scheduled_for: string
           status: Database["public"]["Enums"]["job_status"]
           updated_at: string
@@ -214,6 +215,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           payload: Json
+          poll_id?: string | null
           scheduled_for: string
           status?: Database["public"]["Enums"]["job_status"]
           updated_at?: string
@@ -225,12 +227,20 @@ export type Database = {
           error_message?: string | null
           id?: string
           payload?: Json
+          poll_id?: string | null
           scheduled_for?: string
           status?: Database["public"]["Enums"]["job_status"]
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "jobs_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "jobs_user_id_fkey"
             columns: ["user_id"]
@@ -294,6 +304,39 @@ export type Database = {
           slug?: string
           storage_limit?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      polls: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string
+          options: Json
+          question: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id: string
+          options?: Json
+          question: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string
+          options?: Json
+          question?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
