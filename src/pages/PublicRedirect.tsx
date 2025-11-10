@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -25,13 +24,18 @@ export default function PublicRedirect() {
     try {
       console.log('🔗 Processando redirecionamento para:', slug);
 
-      const { data, error: functionError } = await supabase.functions.invoke('redirect-link', {
-        body: { slug }
-      });
+      // Chamar edge function via fetch para passar query params
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redirect-link?slug=${slug}`
+      );
 
-      console.log('📡 Resposta:', { data, error: functionError });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao processar link');
+      }
 
-      if (functionError) throw functionError;
+      const data = await response.json();
+      console.log('📡 Resposta:', data);
 
       if (!data?.success) {
         throw new Error(data?.error || 'Erro ao processar link');
