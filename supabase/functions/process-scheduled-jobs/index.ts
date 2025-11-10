@@ -111,8 +111,8 @@ Deno.serve(async (req) => {
               if (job.payload.type === 'poll') {
                 const { data: pollData, error: pollError } = await supabase.functions.invoke('evolution-send-poll', {
                   body: {
-                    instanceName: job.payload.instanceName,
-                    groupId: job.payload.groupId,
+                    instanceName,
+                    groupId: group.wa_group_id,
                     question: job.payload.question,
                     options: job.payload.options,
                   }
