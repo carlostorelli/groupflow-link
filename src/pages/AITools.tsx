@@ -23,6 +23,7 @@ export default function AITools() {
   const [selectedGroup, setSelectedGroup] = useState("");
   const [engagementResult, setEngagementResult] = useState<any>(null);
   const [userGroups, setUserGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
 
   // Trend Analyzer State
   const [selectedPlatform, setSelectedPlatform] = useState("shopee");
@@ -39,21 +40,34 @@ export default function AITools() {
   useEffect(() => {
     const loadGroups = async () => {
       try {
+        setLoadingGroups(true);
         const { data, error } = await supabase
           .from('groups')
           .select('id, name, members_count, status')
           .order('name');
 
-        if (error) throw error;
+        if (error) {
+          console.error('Erro ao carregar grupos:', error);
+          throw error;
+        }
         
+        console.log('Grupos carregados:', data);
         setUserGroups(data || []);
       } catch (error) {
         console.error('Erro ao carregar grupos:', error);
+        toast({
+          title: "Erro ao carregar grupos",
+          description: "Não foi possível carregar seus grupos",
+          variant: "destructive",
+        });
+        setUserGroups([]);
+      } finally {
+        setLoadingGroups(false);
       }
     };
 
     loadGroups();
-  }, []);
+  }, [toast]);
 
   const handleCreateCampaign = async () => {
     if (!campaignPrompt.trim()) {
@@ -367,12 +381,17 @@ export default function AITools() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+              <Select value={selectedGroup} onValueChange={setSelectedGroup} disabled={loadingGroups}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um grupo para analisar" />
+                  <SelectValue placeholder={loadingGroups ? "Carregando grupos..." : "Selecione um grupo para analisar"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {userGroups.length > 0 ? (
+                  {loadingGroups ? (
+                    <SelectItem value="loading" disabled>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Carregando...
+                    </SelectItem>
+                  ) : userGroups.length > 0 ? (
                     userGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name} ({group.members_count} membros)
@@ -386,7 +405,7 @@ export default function AITools() {
                 </SelectContent>
               </Select>
 
-              <Button onClick={handleAnalyzeEngagement} disabled={loading} className="w-full">
+              <Button onClick={handleAnalyzeEngagement} disabled={loading || !selectedGroup || loadingGroups} className="w-full">
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
