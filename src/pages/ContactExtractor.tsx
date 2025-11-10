@@ -142,8 +142,9 @@ export default function ContactExtractor() {
         // Coluna A (índice 0) = Nome
         row[0] = contact.name;
         
-        // Coluna C (índice 2) = WhatsApp
-        row[2] = contact.phone;
+        // Coluna C (índice 2) = WhatsApp (forçar como texto com apóstrofe)
+        // Isso previne o Excel de converter para notação científica
+        row[2] = `'${contact.phone}`;
         
         return row;
       });
@@ -151,6 +152,15 @@ export default function ContactExtractor() {
       // Criar nova planilha com os dados
       const newData = [headers, ...contactRows];
       const newWorksheet = XLSX.utils.aoa_to_sheet(newData);
+      
+      // Forçar a coluna C (WhatsApp) como texto
+      const range = XLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
+      for (let row = 1; row <= range.e.r; row++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: 2 }); // Coluna C
+        if (newWorksheet[cellAddress]) {
+          newWorksheet[cellAddress].z = '@'; // Formato de texto
+        }
+      }
       
       // Substituir a planilha no workbook
       workbook.Sheets[firstSheetName] = newWorksheet;
