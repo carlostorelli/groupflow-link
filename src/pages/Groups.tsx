@@ -51,6 +51,7 @@ interface Group {
   member_limit: number;
   status: string;
   wa_group_id: string;
+  invite_code: string | null;
   is_admin: boolean;
   is_favorite: boolean;
 }
@@ -78,6 +79,9 @@ export default function Groups() {
   const [changePhotoDialogOpen, setChangePhotoDialogOpen] = useState(false);
   const [changeDescriptionDialogOpen, setChangeDescriptionDialogOpen] = useState(false);
   const [autoNumberGroups, setAutoNumberGroups] = useState(false);
+  const [editInviteCodeDialogOpen, setEditInviteCodeDialogOpen] = useState(false);
+  const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<Group | null>(null);
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -476,6 +480,57 @@ export default function Groups() {
     } finally {
       setSyncing(false);
       console.log('🏁 Sincronização finalizada');
+    }
+  };
+
+  const handleSaveInviteCode = async () => {
+    if (!selectedGroupForInvite) return;
+
+    try {
+      // Extrair código de convite se for uma URL completa
+      let code = inviteCodeInput.trim();
+      
+      if (code.includes('chat.whatsapp.com/')) {
+        const match = code.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/);
+        if (match) {
+          code = match[1];
+        }
+      }
+
+      if (!code) {
+        toast({
+          variant: "destructive",
+          title: "Erro",
+          description: "Código de convite não pode estar vazio",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('groups')
+        .update({ invite_code: code })
+        .eq('id', selectedGroupForInvite.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Código atualizado!",
+        description: "O código de convite foi salvo com sucesso",
+      });
+
+      setEditInviteCodeDialogOpen(false);
+      setSelectedGroupForInvite(null);
+      setInviteCodeInput('');
+      
+      // Recarregar grupos
+      await loadGroups();
+    } catch (error: any) {
+      console.error('Erro ao salvar código de convite:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar código",
+        description: error.message,
+      });
     }
   };
 
@@ -1526,6 +1581,46 @@ export default function Groups() {
               </div>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={editInviteCodeDialogOpen} onOpenChange={setEditInviteCodeDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Configurar Link de Convite</DialogTitle>
+                <DialogDescription>
+                  Configure o código de convite do grupo: {selectedGroupForInvite?.name}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Cole o link completo do WhatsApp (https://chat.whatsapp.com/CODIGO) ou apenas o código de convite
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <Label htmlFor="inviteCode">Link ou Código de Convite</Label>
+                  <Input
+                    id="inviteCode"
+                    placeholder="Ex: https://chat.whatsapp.com/EaogUMM2qYBBj6emfrIHjh"
+                    value={inviteCodeInput}
+                    onChange={(e) => setInviteCodeInput(e.target.value)}
+                  />
+                  {inviteCodeInput && inviteCodeInput.includes('chat.whatsapp.com/') && (
+                    <p className="text-xs text-muted-foreground">
+                      Código detectado: {inviteCodeInput.match(/chat\.whatsapp\.com\/([A-Za-z0-9]+)/)?.[1]}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={handleSaveInviteCode}
+                  disabled={!inviteCodeInput.trim()}
+                >
+                  Salvar Código
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 
@@ -1563,20 +1658,21 @@ export default function Groups() {
                    />
                  </TableHead>
                  <TableHead className="w-12"></TableHead>
-                <TableHead>Nome do Grupo</TableHead>
-                <TableHead>Membros</TableHead>
-                <TableHead>Limite</TableHead>
-                <TableHead>Status</TableHead>
+                 <TableHead>Nome do Grupo</TableHead>
+                 <TableHead>Membros</TableHead>
+                 <TableHead>Limite</TableHead>
+                 <TableHead>Status</TableHead>
+                 <TableHead>Link de Convite</TableHead>
             </TableRow>
           </TableHeader>
            <TableBody>
-             {filteredGroups.length === 0 ? (
-                 <TableRow>
-                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                     {searchQuery ? "Nenhum grupo encontrado com esse nome" : "Nenhum grupo importado ainda"}
-                   </TableCell>
-                 </TableRow>
-               ) : (
+              {filteredGroups.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {searchQuery ? "Nenhum grupo encontrado com esse nome" : "Nenhum grupo importado ainda"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
                  filteredGroups.map((group) => (
                   <TableRow key={group.id}>
                     <TableCell>
@@ -1600,11 +1696,41 @@ export default function Groups() {
                         />
                       </Button>
                     </TableCell>
-                    <TableCell className="font-medium">{group.name}</TableCell>
-                    <TableCell>{group.members_count}</TableCell>
-                    <TableCell>{group.member_limit}</TableCell>
-                    <TableCell>{getStatusBadge(group.status)}</TableCell>
-                  </TableRow>
+                     <TableCell className="font-medium">{group.name}</TableCell>
+                     <TableCell>{group.members_count}</TableCell>
+                     <TableCell>{group.member_limit}</TableCell>
+                     <TableCell>{getStatusBadge(group.status)}</TableCell>
+                     <TableCell>
+                       {group.invite_code ? (
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           onClick={() => {
+                             setSelectedGroupForInvite(group);
+                             setInviteCodeInput(group.invite_code || '');
+                             setEditInviteCodeDialogOpen(true);
+                           }}
+                         >
+                           <Check className="mr-2 h-4 w-4 text-green-600" />
+                           Configurado
+                         </Button>
+                       ) : (
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           className="text-orange-600 border-orange-300"
+                           onClick={() => {
+                             setSelectedGroupForInvite(group);
+                             setInviteCodeInput('');
+                             setEditInviteCodeDialogOpen(true);
+                           }}
+                         >
+                           <AlertCircle className="mr-2 h-4 w-4" />
+                           Configurar
+                         </Button>
+                       )}
+                     </TableCell>
+                   </TableRow>
                 ))
               )}
             </TableBody>
