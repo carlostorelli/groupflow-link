@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.79.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,25 +17,57 @@ serve(async (req) => {
     console.log('🔍 Requisição recebida para analisar grupo:', groupId);
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!LOVABLE_API_KEY) {
       console.error('❌ LOVABLE_API_KEY não configurada');
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    console.log('✅ API Key encontrada, analisando engajamento...');
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('❌ Variáveis do Supabase não configuradas');
+      throw new Error('Configuração do banco de dados ausente');
+    }
 
-    // Simulate group data (in real implementation, fetch from database)
+    console.log('✅ API Key encontrada, buscando dados do grupo...');
+
+    // Criar cliente do Supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Buscar dados reais do grupo
+    const { data: group, error: groupError } = await supabase
+      .from('groups')
+      .select('*')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError) {
+      console.error('❌ Erro ao buscar grupo:', groupError);
+      throw new Error('Grupo não encontrado');
+    }
+
+    console.log('✅ Grupo encontrado:', group.name);
+
+    // Calcular idade do grupo
+    const createdAt = new Date(group.created_at);
+    const now = new Date();
+    const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Simular dados de engajamento baseados em dados reais
+    // Em uma implementação futura, esses dados viriam de mensagens armazenadas
     const groupData = {
-      name: "Grupo de Descontos",
-      members: 150,
-      messagesLastWeek: 45,
-      messagesThisWeek: 12,
-      activeMembers: 8,
-      lastActivity: "3 dias atrás"
+      name: group.name,
+      members: group.members_count,
+      messagesLastWeek: Math.floor(Math.random() * 50) + 10, // Simulado
+      messagesThisWeek: Math.floor(Math.random() * 30) + 5,  // Simulado
+      activeMembers: Math.floor(group.members_count * 0.2), // Estimativa: 20% ativos
+      lastActivity: daysSinceCreation > 7 ? "mais de 7 dias atrás" : `${daysSinceCreation} dias atrás`,
+      status: group.status,
+      isAdmin: group.is_admin
     };
 
-    console.log('📊 Dados do grupo:', groupData);
+    console.log('📊 Dados do grupo preparados:', groupData);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

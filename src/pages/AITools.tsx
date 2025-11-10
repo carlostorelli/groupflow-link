@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ export default function AITools() {
   // Engagement Analyzer State
   const [selectedGroup, setSelectedGroup] = useState("");
   const [engagementResult, setEngagementResult] = useState<any>(null);
+  const [userGroups, setUserGroups] = useState<any[]>([]);
 
   // Trend Analyzer State
   const [selectedPlatform, setSelectedPlatform] = useState("shopee");
@@ -33,6 +34,26 @@ export default function AITools() {
   const [affiliateLink, setAffiliateLink] = useState("");
   const [copyStyle, setCopyStyle] = useState("aggressive");
   const [messageResult, setMessageResult] = useState<any>(null);
+
+  // Load user's groups
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('groups')
+          .select('id, name, members_count, status')
+          .order('name');
+
+        if (error) throw error;
+        
+        setUserGroups(data || []);
+      } catch (error) {
+        console.error('Erro ao carregar grupos:', error);
+      }
+    };
+
+    loadGroups();
+  }, []);
 
   const handleCreateCampaign = async () => {
     if (!campaignPrompt.trim()) {
@@ -351,9 +372,17 @@ export default function AITools() {
                   <SelectValue placeholder="Selecione um grupo para analisar" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="group-1">🔥 Descontos Diários Grupo 01</SelectItem>
-                  <SelectItem value="group-2">💰 Ofertas Shopee Grupo 02</SelectItem>
-                  <SelectItem value="group-3">🛍️ Compras Inteligentes Grupo 03</SelectItem>
+                  {userGroups.length > 0 ? (
+                    userGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name} ({group.members_count} membros)
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-groups" disabled>
+                      Nenhum grupo encontrado
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
 
