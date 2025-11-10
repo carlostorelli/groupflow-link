@@ -1378,16 +1378,6 @@ export default function Groups() {
                               <AtSign className="mr-2 h-4 w-4" />
                               Mencionar todos
                             </CommandItem>
-                            <CommandItem 
-                              onSelect={() => {
-                                console.log('✅ Selecionou @pessoa');
-                                insertMention("@pessoa ");
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <AtSign className="mr-2 h-4 w-4" />
-                              Mencionar pessoa específica
-                            </CommandItem>
                           </CommandGroup>
                         </Command>
                       </PopoverContent>
@@ -1395,7 +1385,7 @@ export default function Groups() {
                   </div>
                   <Textarea
                     id="message"
-                    placeholder="Digite sua mensagem... Use @todos para mencionar todos ou @pessoa para mencionar alguém específico"
+                    placeholder="Digite sua mensagem... Use @todos para mencionar todos"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}

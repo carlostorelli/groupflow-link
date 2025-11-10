@@ -271,6 +271,14 @@ export function ScheduleMultipleGroups() {
                 onChange={(e) => setPayload(e.target.value)}
                 rows={4}
               />
+              {actionType === 'send_message' && payload.includes('@todos') && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <strong>Menção @todos detectada!</strong> Os participantes de cada grupo serão buscados dinamicamente no momento do envio. Certifique-se de que você tem permissão para visualizar os membros dos grupos.
+                  </AlertDescription>
+                </Alert>
+              )}
               {actionType === 'change_group_name' && (
                 <div className="flex items-center space-x-2 pt-2">
                   <Switch

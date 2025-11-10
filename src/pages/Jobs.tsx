@@ -480,10 +480,6 @@ export default function Jobs() {
                                 <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
                                 @todos
                               </CommandItem>
-                              <CommandItem onSelect={() => insertMention("@pessoa ")}>
-                                <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
-                                @pessoa
-                              </CommandItem>
                             </CommandGroup>
                           </Command>
                         </PopoverContent>
@@ -491,7 +487,7 @@ export default function Jobs() {
                     </div>
                     <Textarea
                       id="payload"
-                      placeholder="Digite sua mensagem... Use @todos para mencionar todos ou @pessoa para mencionar alguém específico"
+                      placeholder="Digite sua mensagem... Use @todos para mencionar todos"
                       value={payload}
                       onChange={(e) => setPayload(e.target.value)}
                       rows={4}
