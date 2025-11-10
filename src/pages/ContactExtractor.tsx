@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,23 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Upload, Calendar, Users, UserPlus, Loader2, Filter } from "lucide-react";
+import { Download, Upload, Loader2, Filter } from "lucide-react";
 
 interface Contact {
   id: string;
@@ -41,21 +25,11 @@ interface Contact {
   isAdmin: boolean;
 }
 
-const mockGroups = [
-  { id: "1", name: "Grupo 1" },
-  { id: "2", name: "Grupo 2" },
-  { id: "3", name: "Grupo VIP" },
-];
-
 export default function ContactExtractor() {
   const [groupLink, setGroupLink] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
-  const [inviteMessage, setInviteMessage] = useState("");
-  const [targetGroupId, setTargetGroupId] = useState("");
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("");
   const [filterAdminsOnly, setFilterAdminsOnly] = useState(false);
   const { toast } = useToast();
 
@@ -136,40 +110,6 @@ export default function ContactExtractor() {
     } else {
       setSelectedContacts(filteredContacts.map(c => c.id));
     }
-  };
-
-  const handleScheduleInvites = () => {
-    if (selectedContacts.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Nenhum contato selecionado",
-        description: "Selecione ao menos um contato para enviar convites",
-      });
-      return;
-    }
-
-    if (!targetGroupId) {
-      toast({
-        variant: "destructive",
-        title: "Grupo não selecionado",
-        description: "Selecione o grupo destino para os convites",
-      });
-      return;
-    }
-
-    if (!inviteMessage.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Mensagem obrigatória",
-        description: "Digite uma mensagem de convite",
-      });
-      return;
-    }
-
-    toast({
-      title: "Convites agendados!",
-      description: `${selectedContacts.length} convite(s) agendado(s) com sucesso`,
-    });
   };
 
   const exportContacts = async () => {
@@ -292,7 +232,7 @@ export default function ContactExtractor() {
           {contacts.length > 0 && (
             <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg border border-primary/20">
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
+                <Download className="h-5 w-5 text-primary" />
                 <span className="font-medium">
                   {contacts.length} contatos extraídos
                 </span>
@@ -326,88 +266,6 @@ export default function ContactExtractor() {
                     <Download className="mr-2 h-4 w-4" />
                     Exportar CSV
                   </Button>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        disabled={selectedContacts.length === 0}
-                      >
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Programar Convites
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Programar Envio de Convites</DialogTitle>
-                        <DialogDescription>
-                          Configure o envio automático de convites para os contatos selecionados
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="target-group">Grupo Destino</Label>
-                          <Select value={targetGroupId} onValueChange={setTargetGroupId}>
-                            <SelectTrigger id="target-group">
-                              <SelectValue placeholder="Selecione o grupo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {mockGroups.map((group) => (
-                                <SelectItem key={group.id} value={group.id}>
-                                  {group.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="invite-message">Mensagem do Convite</Label>
-                          <Textarea
-                            id="invite-message"
-                            placeholder="Olá! Gostaria de te convidar para participar do nosso grupo..."
-                            value={inviteMessage}
-                            onChange={(e) => setInviteMessage(e.target.value)}
-                            rows={4}
-                          />
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="schedule-date">Data</Label>
-                            <Input
-                              id="schedule-date"
-                              type="date"
-                              value={scheduledDate}
-                              onChange={(e) => setScheduledDate(e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="schedule-time">Hora</Label>
-                            <Input
-                              id="schedule-time"
-                              type="time"
-                              value={scheduledTime}
-                              onChange={(e) => setScheduledTime(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
-                          <p className="text-sm">
-                            <strong>Resumo:</strong> {selectedContacts.length} convite(s) serão enviados
-                            {scheduledDate && scheduledTime 
-                              ? ` em ${scheduledDate} às ${scheduledTime}`
-                              : " imediatamente"}
-                          </p>
-                        </div>
-
-                        <Button onClick={handleScheduleInvites} className="w-full">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {scheduledDate && scheduledTime ? "Agendar Convites" : "Enviar Agora"}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               </div>
             </CardHeader>
