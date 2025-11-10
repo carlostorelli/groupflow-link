@@ -65,7 +65,7 @@ export default function RedirectLink() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [distributionStrategy, setDistributionStrategy] = useState<'member_limit' | 'click_limit'>('click_limit');
+  const [distributionStrategy, setDistributionStrategy] = useState<'member_limit' | 'click_limit'>('member_limit');
   const [editingLink, setEditingLink] = useState<any>(null);
   const { toast } = useToast();
   const { user } = useAuth();
