@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Buscar link salvo
+    // Buscar link salvo (sem filtro de user_id para busca pública)
     const { data: savedLink, error: linkError } = await supabase
       .from('saved_redirect_links')
       .select('*')

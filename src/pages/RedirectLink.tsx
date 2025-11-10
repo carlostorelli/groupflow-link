@@ -59,6 +59,7 @@ export default function RedirectLink() {
   const [savedLinks, setSavedLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -154,6 +155,7 @@ export default function RedirectLink() {
       }));
     setGroupPriorities(selectedGroups);
     setSelectedGroupIds(selectedGroups.map(g => g.id));
+    setDialogOpen(false);
     toast({
       title: "Grupos atualizados",
       description: `${selectedGroups.length} grupo(s) selecionado(s) para este link`,
@@ -352,7 +354,7 @@ export default function RedirectLink() {
 
             <div className="space-y-2">
               <Label>Grupos da Campanha</Label>
-              <Dialog>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="w-full">
                     Selecionar Grupos ({selectedGroupIds.length})
