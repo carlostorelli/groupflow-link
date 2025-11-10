@@ -20,6 +20,7 @@ import AITools from "./pages/AITools";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import PublicRedirect from "./pages/PublicRedirect";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,9 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />
+              
+              {/* Rota pública de redirecionamento */}
+              <Route path="/r/:slug" element={<PublicRedirect />} />
               
               <Route
                 path="/dashboard"

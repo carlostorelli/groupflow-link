@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Settings, Trash2, Eye } from "lucide-react";
+import { Copy, ExternalLink, Trash2, Eye, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -42,28 +42,23 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableGroupRow } from "@/components/SortableGroupRow";
 
-const mockGroupsForRedirect = [
-  { id: "1", name: "Grupo 1", priority: 1, members: 245, limit: 500 },
-  { id: "2", name: "Grupo 2", priority: 2, members: 180, limit: 500 },
-  { id: "3", name: "Grupo 3", priority: 3, members: 320, limit: 500 },
-  { id: "4", name: "Grupo VIP", priority: 4, members: 89, limit: 500 },
-];
-
-const allGroups = [
-  { id: "1", name: "Grupo 1", members: 245, limit: 500 },
-  { id: "2", name: "Grupo 2", members: 180, limit: 500 },
-  { id: "3", name: "Grupo 3", members: 320, limit: 500 },
-  { id: "4", name: "Grupo VIP", members: 89, limit: 500 },
-  { id: "5", name: "Grupo Teste", members: 150, limit: 500 },
-];
+interface Group {
+  id: string;
+  name: string;
+  wa_group_id: string;
+  members_count: number;
+  member_limit: number;
+  priority?: number;
+}
 
 export default function RedirectLink() {
-  const [slug, setSlug] = useState("meu-grupo");
-  const [hasLink, setHasLink] = useState(false);
-  const [groupPriorities, setGroupPriorities] = useState(mockGroupsForRedirect);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(["1", "2", "3", "4"]);
+  const [slug, setSlug] = useState("");
+  const [allGroups, setAllGroups] = useState<Group[]>([]);
+  const [groupPriorities, setGroupPriorities] = useState<Group[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [savedLinks, setSavedLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -77,8 +72,29 @@ export default function RedirectLink() {
   useEffect(() => {
     if (user) {
       loadSavedLinks();
+      loadGroups();
     }
   }, [user]);
+
+  const loadGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, name, wa_group_id, members_count, member_limit')
+        .order('is_favorite', { ascending: false })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setAllGroups(data || []);
+    } catch (error) {
+      console.error('Error loading groups:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar grupos",
+        description: "Não foi possível carregar seus grupos",
+      });
+    }
+  };
 
   const loadSavedLinks = async () => {
     try {
@@ -137,6 +153,7 @@ export default function RedirectLink() {
         priority: index + 1
       }));
     setGroupPriorities(selectedGroups);
+    setSelectedGroupIds(selectedGroups.map(g => g.id));
     toast({
       title: "Grupos atualizados",
       description: `${selectedGroups.length} grupo(s) selecionado(s) para este link`,
@@ -181,14 +198,58 @@ export default function RedirectLink() {
       return;
     }
 
+    if (groupPriorities.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Grupos obrigatórios",
+        description: "Selecione pelo menos um grupo",
+      });
+      return;
+    }
+
+    // Validar slug (apenas letras minúsculas, números e hífens)
+    const slugRegex = /^[a-z0-9-]+$/;
+    if (!slugRegex.test(slug)) {
+      toast({
+        variant: "destructive",
+        title: "Slug inválido",
+        description: "Use apenas letras minúsculas, números e hífens",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
+      // Verificar se slug já existe
+      const { data: existing } = await supabase
+        .from('saved_redirect_links')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (existing) {
+        toast({
+          variant: "destructive",
+          title: "Slug já existe",
+          description: "Escolha outro nome para seu link",
+        });
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('saved_redirect_links')
         .insert({
           user_id: user?.id,
-          slug: slug,
-          group_priorities: groupPriorities,
+          slug: slug.toLowerCase(),
+          group_priorities: groupPriorities.map(g => ({
+            id: g.id,
+            name: g.name,
+            wa_group_id: g.wa_group_id,
+            members_count: g.members_count,
+            member_limit: g.member_limit,
+            priority: g.priority
+          })),
           is_active: true
         })
         .select()
@@ -196,7 +257,11 @@ export default function RedirectLink() {
 
       if (error) throw error;
 
-      setHasLink(true);
+      // Limpar form
+      setSlug("");
+      setGroupPriorities([]);
+      setSelectedGroupIds([]);
+      
       await loadSavedLinks();
       
       toast({
@@ -301,8 +366,16 @@ export default function RedirectLink() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
+                    <Input
+                      placeholder="Buscar grupos..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="mb-2"
+                    />
                     <div className="border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
-                      {allGroups.map((group) => (
+                      {allGroups
+                        .filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((group) => (
                         <div key={group.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`link-group-${group.id}`}
@@ -315,7 +388,7 @@ export default function RedirectLink() {
                           >
                             {group.name}
                             <span className="text-xs text-muted-foreground ml-2">
-                              ({group.members}/{group.limit})
+                              ({group.members_count}/{group.member_limit})
                             </span>
                           </Label>
                         </div>
@@ -332,7 +405,11 @@ export default function RedirectLink() {
               </p>
             </div>
 
-            <Button onClick={handleCreateLink} disabled={loading} className="w-full">
+            <Button 
+              onClick={handleCreateLink} 
+              disabled={loading || !slug.trim() || groupPriorities.length === 0} 
+              className="w-full"
+            >
               {loading ? "Salvando..." : "Criar e Salvar Link"}
             </Button>
           </CardContent>
@@ -430,7 +507,13 @@ export default function RedirectLink() {
                   {groupPriorities.map((group, index) => (
                     <SortableGroupRow
                       key={group.id}
-                      group={group}
+                      group={{
+                        id: group.id,
+                        name: group.name,
+                        priority: group.priority || index + 1,
+                        members: group.members_count,
+                        limit: group.member_limit
+                      }}
                       index={index}
                       totalGroups={groupPriorities.length}
                       onMoveUp={moveUp}
