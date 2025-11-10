@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw, Hash } from "lucide-react";
+import { AtSign, Check, Search, AlertCircle, Wifi, WifiOff, QrCode, RefreshCw, Hash, Star } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ interface Group {
   status: string;
   wa_group_id: string;
   is_admin: boolean;
+  is_favorite: boolean;
 }
 
 export default function Groups() {
@@ -274,7 +275,8 @@ export default function Groups() {
       const { data, error } = await supabase
         .from('groups')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('is_favorite', { ascending: false })
+        .order('name', { ascending: true });
 
       if (error) throw error;
 
@@ -289,6 +291,45 @@ export default function Groups() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleFavorite = async (groupId: string, currentFavorite: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('groups')
+        .update({ is_favorite: !currentFavorite })
+        .eq('id', groupId);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      setGroups(prev =>
+        prev.map(group =>
+          group.id === groupId ? { ...group, is_favorite: !currentFavorite } : group
+        ).sort((a, b) => {
+          // Favoritos primeiro
+          if (a.is_favorite !== b.is_favorite) {
+            return a.is_favorite ? -1 : 1;
+          }
+          // Depois por nome
+          return a.name.localeCompare(b.name);
+        })
+      );
+
+      toast({
+        title: currentFavorite ? "Removido dos favoritos" : "Adicionado aos favoritos",
+        description: currentFavorite 
+          ? "O grupo foi removido dos favoritos" 
+          : "O grupo foi marcado como favorito e aparecerá no topo",
+      });
+    } catch (error: any) {
+      console.error('Erro ao atualizar favorito:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao atualizar favorito",
+        description: error.message,
+      });
     }
   };
 
@@ -1521,6 +1562,7 @@ export default function Groups() {
                      onCheckedChange={toggleAll}
                    />
                  </TableHead>
+                 <TableHead className="w-12"></TableHead>
                 <TableHead>Nome do Grupo</TableHead>
                 <TableHead>Membros</TableHead>
                 <TableHead>Limite</TableHead>
@@ -1530,7 +1572,7 @@ export default function Groups() {
            <TableBody>
              {filteredGroups.length === 0 ? (
                  <TableRow>
-                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                      {searchQuery ? "Nenhum grupo encontrado com esse nome" : "Nenhum grupo importado ainda"}
                    </TableCell>
                  </TableRow>
@@ -1542,6 +1584,21 @@ export default function Groups() {
                         checked={selectedGroups.includes(group.id)}
                         onCheckedChange={() => toggleGroup(group.id)}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => toggleFavorite(group.id, group.is_favorite)}
+                      >
+                        <Star 
+                          className={cn(
+                            "h-4 w-4",
+                            group.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+                          )} 
+                        />
+                      </Button>
                     </TableCell>
                     <TableCell className="font-medium">{group.name}</TableCell>
                     <TableCell>{group.members_count}</TableCell>

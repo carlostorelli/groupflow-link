@@ -40,7 +40,8 @@ export function CreateMultipleGroups() {
         .from('groups')
         .select('id, name, wa_group_id, is_admin')
         .eq('is_admin', true)
-        .order('name');
+        .order('is_favorite', { ascending: false })
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setAvailableGroups(data || []);

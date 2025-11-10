@@ -99,6 +99,7 @@ export type Database = {
           id: string
           instance_id: string
           is_admin: boolean
+          is_favorite: boolean
           member_limit: number
           members_count: number
           name: string
@@ -113,6 +114,7 @@ export type Database = {
           id?: string
           instance_id: string
           is_admin?: boolean
+          is_favorite?: boolean
           member_limit?: number
           members_count?: number
           name: string
@@ -127,6 +129,7 @@ export type Database = {
           id?: string
           instance_id?: string
           is_admin?: boolean
+          is_favorite?: boolean
           member_limit?: number
           members_count?: number
           name?: string

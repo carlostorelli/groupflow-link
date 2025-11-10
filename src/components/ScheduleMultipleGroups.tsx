@@ -43,7 +43,8 @@ export function ScheduleMultipleGroups() {
       const { data, error } = await supabase
         .from('groups')
         .select('id, name, wa_group_id')
-        .order('name');
+        .order('is_favorite', { ascending: false })
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setAvailableGroups(data || []);
