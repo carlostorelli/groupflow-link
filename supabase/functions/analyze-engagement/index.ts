@@ -13,13 +13,16 @@ serve(async (req) => {
 
   try {
     const { groupId } = await req.json();
+    console.log('🔍 Requisição recebida para analisar grupo:', groupId);
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
+      console.error('❌ LOVABLE_API_KEY não configurada');
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    console.log('Analisando engajamento do grupo:', groupId);
+    console.log('✅ API Key encontrada, analisando engajamento...');
 
     // Simulate group data (in real implementation, fetch from database)
     const groupData = {
@@ -30,6 +33,8 @@ serve(async (req) => {
       activeMembers: 8,
       lastActivity: "3 dias atrás"
     };
+
+    console.log('📊 Dados do grupo:', groupData);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -72,11 +77,21 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erro da API:', response.status, errorText);
+      console.error('❌ Erro da API Lovable:', response.status, errorText);
+      
+      if (response.status === 429) {
+        throw new Error('Limite de requisições atingido. Por favor, aguarde alguns minutos.');
+      }
+      if (response.status === 402) {
+        throw new Error('Créditos insuficientes. Por favor, adicione créditos à sua conta.');
+      }
+      
       throw new Error(`Erro ao analisar engajamento: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log('✅ Resposta recebida da API');
+    
     let content = data.choices[0].message.content;
     
     // Remove markdown code blocks if present
@@ -84,16 +99,19 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`
     
     const result = JSON.parse(content);
 
-    console.log('Análise de engajamento concluída');
+    console.log('✅ Análise de engajamento concluída com sucesso');
 
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Erro ao analisar engajamento:', error);
+    console.error('❌ Erro ao analisar engajamento:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        details: 'Verifique os logs para mais detalhes'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -94,22 +94,36 @@ export default function AITools() {
 
     setLoading(true);
     try {
+      console.log('Chamando analyze-engagement com groupId:', selectedGroup);
+      
       const { data, error } = await supabase.functions.invoke('analyze-engagement', {
         body: { groupId: selectedGroup }
       });
 
-      if (error) throw error;
+      console.log('Resposta da função:', { data, error });
+
+      if (error) {
+        console.error('Erro retornado pela função:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('Nenhum dado retornado pela função');
+      }
 
       setEngagementResult(data);
       toast({
         title: "Análise concluída! 📊",
         description: "Confira as sugestões de engajamento",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error analyzing engagement:', error);
+      
+      const errorMessage = error?.message || error?.error || 'Não foi possível analisar o engajamento';
+      
       toast({
-        title: "Erro",
-        description: "Não foi possível analisar o engajamento",
+        title: "Erro na análise",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
