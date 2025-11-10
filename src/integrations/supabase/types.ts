@@ -98,6 +98,7 @@ export type Database = {
           description: string | null
           id: string
           instance_id: string
+          invite_code: string | null
           is_admin: boolean
           is_favorite: boolean
           member_limit: number
@@ -113,6 +114,7 @@ export type Database = {
           description?: string | null
           id?: string
           instance_id: string
+          invite_code?: string | null
           is_admin?: boolean
           is_favorite?: boolean
           member_limit?: number
@@ -128,6 +130,7 @@ export type Database = {
           description?: string | null
           id?: string
           instance_id?: string
+          invite_code?: string | null
           is_admin?: boolean
           is_favorite?: boolean
           member_limit?: number

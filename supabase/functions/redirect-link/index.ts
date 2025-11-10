@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const groupIds = (savedLink.group_priorities as GroupPriority[]).map(g => g.id);
     const { data: currentGroups, error: groupsError } = await supabase
       .from('groups')
-      .select('id, name, wa_group_id, members_count, member_limit')
+      .select('id, name, wa_group_id, invite_code, members_count, member_limit')
       .in('id', groupIds);
 
     if (groupsError) {
@@ -151,8 +151,13 @@ Deno.serve(async (req) => {
 
     console.log('📊 Clique registrado com sucesso');
 
-    // Montar URL do WhatsApp (remover @g.us se presente no wa_group_id)
-    const groupCode = selectedGroup.wa_group_id.replace(/@g\.us$/, '');
+    // Usar invite_code se disponível, senão usar wa_group_id (remover @g.us)
+    const groupCode = selectedGroup.invite_code || selectedGroup.wa_group_id.replace(/@g\.us$/, '');
+    
+    if (!selectedGroup.invite_code) {
+      console.warn('⚠️ Grupo sem invite_code configurado, usando wa_group_id');
+    }
+    
     const whatsappUrl = `https://chat.whatsapp.com/${groupCode}`;
 
     console.log('🚀 Redirecionando para:', whatsappUrl);
