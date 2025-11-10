@@ -199,6 +199,30 @@ export default function ContactExtractor() {
         </p>
       </div>
 
+      <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+            ⚠️ Aviso Importante
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-orange-900 dark:text-orange-200">
+            <strong>Use esta ferramenta com responsabilidade!</strong> O uso inadequado pode resultar no bloqueio temporário ou permanente do seu número pelo WhatsApp.
+          </p>
+          <ul className="list-disc list-inside space-y-2 text-sm text-orange-900 dark:text-orange-200">
+            <li>Não extraia contatos de grupos que você não administra sem permissão</li>
+            <li>Evite enviar mensagens em massa para muitos contatos de uma só vez</li>
+            <li>Respeite a privacidade dos membros dos grupos</li>
+            <li>Use intervalos adequados entre mensagens (mínimo 3-5 segundos)</li>
+            <li>Não envie spam ou mensagens não solicitadas</li>
+            <li>Siga os Termos de Serviço do WhatsApp</li>
+          </ul>
+          <p className="text-sm text-orange-900 dark:text-orange-200 font-medium">
+            💡 Dica: Use a funcionalidade de agendamento para enviar mensagens gradualmente ao longo do tempo.
+          </p>
+        </CardContent>
+      </Card>
+
       <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Extrair Contatos do Grupo</CardTitle>
