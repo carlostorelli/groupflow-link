@@ -135,7 +135,7 @@ async function searchShopeeProducts(
   const variables = {
     listType: 0, // 0 = All products
     sortType: sortType,
-    limit: searchParams.limit || 20,
+    limit: 100, // Get more products to filter by category later
     page: 1,
   };
 
@@ -187,6 +187,28 @@ async function searchShopeeProducts(
 
   // Filter products based on search parameters
   let filteredProducts = products;
+
+  // Filter by categories/keywords (if provided)
+  if (searchParams.categories && searchParams.categories.length > 0) {
+    filteredProducts = filteredProducts.filter((p: any) => {
+      const productName = (p.productName || '').toLowerCase();
+      // Check if product name contains any of the category keywords
+      return searchParams.categories!.some(category => {
+        const keywords = category.toLowerCase().split(' ');
+        return keywords.some(keyword => productName.includes(keyword));
+      });
+    });
+    console.log(`🔍 Filtrados ${filteredProducts.length} produtos por categoria`);
+  }
+
+  // Filter by keyword (alternative to categories)
+  if (searchParams.keyword && !searchParams.categories?.length) {
+    const keyword = searchParams.keyword.toLowerCase();
+    filteredProducts = filteredProducts.filter((p: any) => 
+      (p.productName || '').toLowerCase().includes(keyword)
+    );
+    console.log(`🔍 Filtrados ${filteredProducts.length} produtos por palavra-chave`);
+  }
 
   if (searchParams.minPrice) {
     filteredProducts = filteredProducts.filter((p: any) => 
