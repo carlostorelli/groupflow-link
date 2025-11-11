@@ -406,23 +406,29 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
   // Send each deal to each group
   for (const deal of deals) {
-    // Check if deal.product_url is already an affiliate link (short link from API)
     let affiliateUrl = deal.product_url;
     
-    // Only generate a new affiliate link if it's NOT already a short link
-    if (!deal.product_url.includes('s.shopee.com.br')) {
+    // Always ensure we have a short link format
+    // If it's not already a short link, generate one
+    if (!affiliateUrl || !affiliateUrl.includes('s.shopee.com.br')) {
+      console.log('🔗 Gerando link curto para:', deal.product_url);
+      
       const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
         body: {
-          productUrl: deal.product_url,
+          productUrl: deal.product_url || deal.image_url, // Fallback to any available URL
           userId: automation.user_id,
         },
       });
 
       if (affiliateLinkResponse.data?.affiliateUrl) {
         affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
+        console.log('✅ Link curto gerado:', affiliateUrl);
+      } else {
+        console.error('❌ Falha ao gerar link curto, pulando oferta');
+        continue; // Skip this offer if we can't generate a short link
       }
     } else {
-      console.log('✅ Usando link de afiliado direto da API:', affiliateUrl);
+      console.log('✅ Usando link curto da API:', affiliateUrl);
     }
 
     // Use product image from store
