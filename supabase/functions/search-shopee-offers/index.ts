@@ -132,63 +132,83 @@ async function searchShopeeProducts(
   else if (searchParams.sortBy === 'sales') sortType = 2;
   else if (searchParams.sortBy === 'commission') sortType = 5;
 
-  const variables = {
-    listType: 0, // 0 = All products
-    sortType: sortType,
-    limit: 50, // Maximum allowed by Shopee API
-    page: 1,
-  };
-
-  const payload = JSON.stringify({
-    query,
-    operationName: 'ProductOfferQuery',
-    variables,
-  });
-
-  // Generate authentication signature
-  const timestamp = Math.floor(Date.now() / 1000);
-  const signatureString = `${appId}${timestamp}${payload}${password}`;
+  // Try to fetch from multiple pages to increase chances of finding category products
+  const maxPages = 3;
+  let allProducts: any[] = [];
   
-  // Calculate SHA256 hash
-  const encoder = new TextEncoder();
-  const data = encoder.encode(signatureString);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  for (let page = 1; page <= maxPages; page++) {
+    const variables = {
+      listType: 0, // 0 = All products
+      sortType: sortType,
+      limit: 50, // Maximum allowed by Shopee API
+      page: page,
+    };
 
-  const authHeader = `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
+    const payload = JSON.stringify({
+      query,
+      operationName: 'ProductOfferQuery',
+      variables,
+    });
 
-  console.log('📡 Fazendo requisição para Shopee API...');
-  console.log('Auth Header:', authHeader);
+    // Generate authentication signature
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signatureString = `${appId}${timestamp}${payload}${password}`;
+    
+    // Calculate SHA256 hash
+    const encoder = new TextEncoder();
+    const data = encoder.encode(signatureString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': authHeader,
-    },
-    body: payload,
-  });
+    const authHeader = `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
 
-  const responseData = await response.json();
-  console.log('📥 Resposta da API Shopee:', JSON.stringify(responseData).substring(0, 500));
+    console.log(`📡 Fazendo requisição para Shopee API (página ${page})...`);
 
-  if (responseData.errors) {
-    console.error('❌ Erros na API Shopee:', responseData.errors);
-    throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: payload,
+    });
+
+    const responseData = await response.json();
+
+    if (responseData.errors) {
+      console.error('❌ Erros na API Shopee:', responseData.errors);
+      throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
+    }
+
+    if (!responseData.data?.productOfferV2?.nodes) {
+      console.log('⚠️ Nenhum produto encontrado na página', page);
+      break;
+    }
+
+    const pageProducts = responseData.data.productOfferV2.nodes;
+    allProducts = allProducts.concat(pageProducts);
+    
+    console.log(`📦 Página ${page}: ${pageProducts.length} produtos`);
+    
+    // If we have enough products or no more pages, stop
+    if (!responseData.data.productOfferV2.pageInfo.hasNextPage || allProducts.length >= 100) {
+      break;
+    }
   }
-
-  if (!responseData.data?.productOfferV2?.nodes) {
-    console.log('⚠️ Nenhum produto encontrado');
-    return [];
+  
+  console.log(`📊 Total de produtos coletados: ${allProducts.length}`);
+  
+  // Log first 10 product names for debugging
+  if (allProducts.length > 0) {
+    console.log('📝 Amostra de produtos da API:');
+    allProducts.slice(0, 10).forEach((p: any, i: number) => {
+      console.log(`  ${i + 1}. ${p.productName || 'sem nome'}`);
+    });
   }
-
-  const products = responseData.data.productOfferV2.nodes;
 
   // Filter products based on search parameters
-  let filteredProducts = products;
-  
-  console.log(`📊 Total de produtos da API: ${products.length}`);
+  let filteredProducts = allProducts;
   
   // Category synonyms to improve filtering (using word boundaries)
   const categorySynonyms: Record<string, string[]> = {
@@ -213,7 +233,7 @@ async function searchShopeeProducts(
   if (searchParams.categories && searchParams.categories.length > 0) {
     console.log(`🔍 Filtrando por categorias: ${searchParams.categories.join(', ')}`);
     
-    filteredProducts = products.filter((p: any) => {
+    filteredProducts = allProducts.filter((p: any) => {
       const productName = (p.productName || '').toLowerCase();
       
       return searchParams.categories!.some(category => {
