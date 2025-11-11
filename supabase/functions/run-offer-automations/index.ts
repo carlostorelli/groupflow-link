@@ -97,55 +97,49 @@ serve(async (req) => {
     try {
       console.log(`⚙️ Processando automação: ${automation.id}`);
 
-      // 🔒 LOCK MECHANISM: Try to acquire lock
+      // 🔒 STEP 1: Check if already locked by another worker
+      const { data: currentLock } = await supabase
+        .from('automation_runs')
+        .select('lock_until, last_sent_at')
+        .eq('automation_id', automation.id)
+        .maybeSingle();
+
+      // Check if locked by another worker (lock still valid)
+      if (currentLock?.lock_until && new Date(currentLock.lock_until) > now) {
+        const timeLeft = Math.ceil((new Date(currentLock.lock_until).getTime() - now.getTime()) / 1000);
+        console.log(`🔒 Automação ${automation.id} já está travada (expira em ${timeLeft}s)`);
+        continue; // Skip this automation
+      }
+
+      // 🔒 STEP 2: Check interval (only for automatic execution, not manual)
+      if (!automationId) { // Only check interval for automatic execution
+        const intervalMs = automation.interval_minutes * 60 * 1000;
+        if (currentLock?.last_sent_at) {
+          const lastSent = new Date(currentLock.last_sent_at);
+          const timeSinceLastSent = now.getTime() - lastSent.getTime();
+          
+          if (timeSinceLastSent < intervalMs) {
+            const waitMinutes = Math.ceil((intervalMs - timeSinceLastSent) / 60000);
+            console.log(`⏰ Automação ${automation.id} executada há ${Math.ceil(timeSinceLastSent/1000/60)}min, aguardando mais ${waitMinutes}min`);
+            continue;
+          }
+        }
+      }
+
+      // 🔒 STEP 3: Acquire lock NOW
       const lockDuration = 90000; // 90 seconds
       const lockUntil = new Date(now.getTime() + lockDuration);
 
-      // Upsert automation_runs with lock
-      const { data: runState, error: lockError } = await supabase
+      await supabase
         .from('automation_runs')
         .upsert({
           automation_id: automation.id,
           lock_until: lockUntil.toISOString(),
         }, {
           onConflict: 'automation_id'
-        })
-        .select('last_sent_at, next_run_at, lock_until')
-        .single();
+        });
 
-      if (lockError) {
-        console.error('❌ Erro ao adquirir lock:', lockError);
-        continue;
-      }
-
-      // Check if locked by another worker
-      if (runState?.lock_until && new Date(runState.lock_until) > now) {
-        const timeDiff = new Date(runState.lock_until).getTime() - now.getTime();
-        if (timeDiff > 1000) { // More than 1 second means another worker is running
-          console.log(`🔒 Automação ${automation.id} está sendo processada por outro worker`);
-          continue;
-        }
-      }
-
-      // Check if we should run based on interval
-      if (runState?.last_sent_at) {
-        const lastSent = new Date(runState.last_sent_at);
-        const intervalMs = automation.interval_minutes * 60 * 1000;
-        const timeSinceLastSent = now.getTime() - lastSent.getTime();
-        
-        if (timeSinceLastSent < intervalMs) {
-          const remaining = Math.ceil((intervalMs - timeSinceLastSent) / 1000 / 60);
-          console.log(`⏰ Automação ${automation.id} executada há ${Math.ceil(timeSinceLastSent/1000/60)}min, aguardando mais ${remaining}min`);
-          
-          // Release lock
-          await supabase
-            .from('automation_runs')
-            .update({ lock_until: new Date(now.getTime() - 1000).toISOString() })
-            .eq('automation_id', automation.id);
-          
-          continue;
-        }
-      }
+      console.log(`✅ Lock adquirido, processando...`);
 
       if (automation.mode === 'search') {
         await processSearchMode(supabase, automation);
