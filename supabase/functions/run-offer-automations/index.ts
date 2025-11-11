@@ -401,6 +401,9 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
   console.log(`✅ Instância WhatsApp encontrada: ${instance.instance_id}`);
 
+  // Helper function to add delay between messages
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   // Send each deal to each group
   for (const deal of deals) {
     // Generate affiliate link
@@ -498,6 +501,10 @@ ${cta} ${affiliateUrl}
         });
 
         console.log(`✅ Mensagem enviada com sucesso para ${groupId} (key: ${responseData.key?.id || 'N/A'})`);
+
+        // Add 3 second delay between messages to avoid flood
+        console.log('⏳ Aguardando 3 segundos antes da próxima mensagem...');
+        await delay(3000);
 
       } catch (error) {
         console.error(`❌ Erro ao enviar para grupo ${groupId}:`, error);
