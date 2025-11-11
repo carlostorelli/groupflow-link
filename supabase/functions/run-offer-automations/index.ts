@@ -380,19 +380,18 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       // Fetch recent messages from the group
       const encodedInstanceId = encodeURIComponent(instance.instance_id);
       
-      // Get instance owner JID first to ignore own messages
-      const instanceInfoResponse = await fetch(
-        `${evolutionUrl}/instance/fetchInstances`,
+      // Get instance owner JID to ignore own messages
+      const connectionStateResponse = await fetch(
+        `${evolutionUrl}/instance/connectionState/${encodedInstanceId}`,
         {
           headers: { 'apikey': evolutionKey },
         }
       );
 
       let ownerJid = null;
-      if (instanceInfoResponse.ok) {
-        const instancesArray = await instanceInfoResponse.json();
-        const instanceInfo = instancesArray?.find((i: any) => i?.instance?.instanceName === instance.instance_id);
-        ownerJid = instanceInfo?.instance?.owner;
+      if (connectionStateResponse.ok) {
+        const connectionData = await connectionStateResponse.json();
+        ownerJid = connectionData?.instance?.owner;
         console.log(`👤 Owner JID: ${ownerJid}`);
       }
       
@@ -410,7 +409,7 @@ async function processMonitorMode(supabase: any, automation: Automation) {
                 remoteJid: groupId
               }
             },
-            limit: 50
+            limit: 100
           }),
         }
       );
