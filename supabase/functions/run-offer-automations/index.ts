@@ -299,10 +299,373 @@ async function processSearchMode(supabase: any, automation: Automation) {
 async function processMonitorMode(supabase: any, automation: Automation) {
   console.log(`👀 Modo monitoramento ativado para automação ${automation.id}`);
   
-  // TODO: Implement monitoring mode
-  // This will listen to WhatsApp messages in monitor_groups
-  // Extract product links and convert to affiliate links
-  console.log('⚠️ Modo monitoramento ainda não implementado');
+  // Validate monitor_groups
+  if (!automation.monitor_groups || automation.monitor_groups.length === 0) {
+    const errorMsg = 'Nenhum grupo de monitoramento configurado';
+    console.error('❌', errorMsg);
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store: automation.stores[0] || 'shopee',
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
+  }
+
+  // Validate send_groups
+  if (!automation.send_groups || automation.send_groups.length === 0) {
+    const errorMsg = 'Nenhum grupo de envio configurado';
+    console.error('❌', errorMsg);
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store: automation.stores[0] || 'shopee',
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
+  }
+
+  const evolutionUrl = Deno.env.get('EVOLUTION_API_URL');
+  const evolutionKey = Deno.env.get('EVOLUTION_API_KEY');
+
+  if (!evolutionUrl || !evolutionKey) {
+    const errorMsg = 'Evolution API não configurada nos secrets';
+    console.error('❌', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  // Get user's instance
+  const { data: instance } = await supabase
+    .from('instances')
+    .select('instance_id')
+    .eq('user_id', automation.user_id)
+    .eq('status', 'connected')
+    .single();
+
+  if (!instance) {
+    const errorMsg = 'WhatsApp não está conectado';
+    console.error('❌', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  console.log(`✅ Instância WhatsApp encontrada: ${instance.instance_id}`);
+
+  // Get messages from monitored groups (last 24 hours)
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  
+  // Get already processed links to avoid duplicates
+  const { data: recentlySent } = await supabase
+    .from('dispatch_logs')
+    .select('product_url')
+    .eq('automation_id', automation.id)
+    .eq('status', 'sent')
+    .gte('created_at', yesterday.toISOString());
+
+  const sentUrls = new Set(recentlySent?.map((log: any) => log.product_url) || []);
+  console.log(`📋 ${sentUrls.size} link(s) já processado(s) nas últimas 24h`);
+
+  // Monitor each group
+  for (const groupId of automation.monitor_groups) {
+    try {
+      console.log(`👁️ Monitorando grupo: ${groupId}`);
+      
+      // Fetch recent messages from the group
+      const encodedInstanceId = encodeURIComponent(instance.instance_id);
+      const messagesResponse = await fetch(
+        `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionKey,
+          },
+          body: JSON.stringify({
+            where: {
+              key: {
+                remoteJid: groupId
+              }
+            },
+            limit: 50
+          }),
+        }
+      );
+
+      if (!messagesResponse.ok) {
+        console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}`);
+        continue;
+      }
+
+      const messages = await messagesResponse.json();
+      console.log(`📨 Encontradas ${messages.length || 0} mensagens no grupo`);
+
+      // Get instance owner JID to ignore own messages
+      const instanceInfoResponse = await fetch(
+        `${evolutionUrl}/instance/fetchInstances?instanceName=${encodedInstanceId}`,
+        {
+          headers: { 'apikey': evolutionKey },
+        }
+      );
+
+      let ownerJid = null;
+      if (instanceInfoResponse.ok) {
+        const instanceInfo = await instanceInfoResponse.json();
+        ownerJid = instanceInfo[0]?.instance?.owner;
+        console.log(`👤 Owner JID: ${ownerJid}`);
+      }
+
+      // Process messages
+      if (messages && Array.isArray(messages)) {
+        for (const msg of messages) {
+          try {
+            // Ignore messages from self
+            if (ownerJid && msg.key?.participant === ownerJid) {
+              continue;
+            }
+            if (ownerJid && msg.key?.fromMe) {
+              continue;
+            }
+
+            // Extract text from message
+            const text = msg.message?.conversation || 
+                        msg.message?.extendedTextMessage?.text || 
+                        msg.message?.imageMessage?.caption || '';
+            
+            if (!text) continue;
+
+            // Extract product links (Shopee, Amazon, Magalu, ML, etc.)
+            const productLinks = extractProductLinks(text);
+            
+            if (productLinks.length === 0) continue;
+
+            // Take only the first link
+            const productLink = productLinks[0];
+            console.log(`🔗 Link encontrado: ${productLink}`);
+
+            // Skip if already processed
+            if (sentUrls.has(productLink)) {
+              console.log(`⏭️ Link já processado: ${productLink}`);
+              continue;
+            }
+
+            // Detect store and convert to affiliate link
+            const store = detectStore(productLink);
+            if (!store) {
+              console.log(`⚠️ Loja não detectada para: ${productLink}`);
+              continue;
+            }
+
+            console.log(`🏪 Loja detectada: ${store}`);
+
+            // Get user's credentials for this store
+            const { data: credential } = await supabase
+              .from('affiliate_credentials')
+              .select('*')
+              .eq('user_id', automation.user_id)
+              .eq('store', store)
+              .eq('is_active', true)
+              .maybeSingle();
+
+            if (!credential) {
+              console.log(`⚠️ Credencial não configurada para ${store}`);
+              continue;
+            }
+
+            // Generate affiliate link
+            let affiliateUrl = productLink;
+            
+            if (store === 'shopee') {
+              const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
+                body: {
+                  productUrl: productLink,
+                  userId: automation.user_id,
+                },
+              });
+
+              if (affiliateLinkResponse.data?.affiliateUrl) {
+                affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
+                console.log('✅ Link de afiliado gerado:', affiliateUrl);
+              } else {
+                console.error('❌ Falha ao gerar link de afiliado');
+                continue;
+              }
+            }
+
+            // Create message with affiliate link
+            const messageTemplate = automation.texts[Math.floor(Math.random() * automation.texts.length)] || 
+                                   '🔥 Oferta encontrada!';
+            const cta = automation.ctas && automation.ctas.length > 0 
+              ? automation.ctas[Math.floor(Math.random() * automation.ctas.length)]
+              : '🛒 Compre aqui:';
+
+            const formattedMessage = `${messageTemplate}
+
+${cta} ${affiliateUrl}`;
+
+            // Send to all configured groups
+            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+            
+            for (const targetGroupId of automation.send_groups) {
+              try {
+                console.log(`📨 Enviando para grupo ${targetGroupId}...`);
+
+                const sendResponse = await fetch(
+                  `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': evolutionKey,
+                    },
+                    body: JSON.stringify({
+                      number: targetGroupId,
+                      text: formattedMessage,
+                    }),
+                  }
+                );
+
+                if (!sendResponse.ok) {
+                  throw new Error(`Evolution API retornou ${sendResponse.status}`);
+                }
+
+                const sendData = await sendResponse.json();
+                
+                if (sendData.error || !sendData.key) {
+                  throw new Error(sendData.error || 'Resposta inválida');
+                }
+
+                // Log successful dispatch
+                await supabase.from('dispatch_logs').insert({
+                  user_id: automation.user_id,
+                  automation_id: automation.id,
+                  automation_name: automation.name || 'Automação',
+                  store,
+                  group_id: targetGroupId,
+                  product_url: productLink,
+                  affiliate_url: affiliateUrl,
+                  status: 'sent',
+                });
+
+                console.log(`✅ Mensagem enviada com sucesso para ${targetGroupId}`);
+
+                // Mark as processed
+                sentUrls.add(productLink);
+
+                // Delay between messages
+                await delay(3000);
+
+              } catch (error) {
+                console.error(`❌ Erro ao enviar para grupo ${targetGroupId}:`, error);
+                const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
+                await supabase.from('dispatch_logs').insert({
+                  user_id: automation.user_id,
+                  automation_id: automation.id,
+                  automation_name: automation.name || 'Automação',
+                  store,
+                  group_id: targetGroupId,
+                  product_url: productLink,
+                  affiliate_url: affiliateUrl,
+                  status: 'error',
+                  error: errorMessage,
+                });
+              }
+            }
+
+            // Process only one link per cycle
+            console.log('✅ Link processado, finalizando ciclo');
+            return;
+
+          } catch (error) {
+            console.error('❌ Erro ao processar mensagem:', error);
+            // Continue to next message
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error(`❌ Erro ao monitorar grupo ${groupId}:`, error);
+      // Continue to next group
+    }
+  }
+
+  console.log('✅ Monitoramento concluído, nenhum link novo encontrado');
+}
+
+function extractProductLinks(text: string): string[] {
+  const links: string[] = [];
+  
+  // Regex patterns for different stores
+  const patterns = [
+    // Shopee
+    /https?:\/\/(www\.)?(shopee\.com\.br|s\.shopee\.com\.br)\/[^\s]+/gi,
+    // Amazon
+    /https?:\/\/(www\.)?(amazon\.com\.br|amzn\.to)\/[^\s]+/gi,
+    // Magazine Luiza
+    /https?:\/\/(www\.)?(magazineluiza\.com\.br|magalu\.com\.br)\/[^\s]+/gi,
+    // Mercado Livre
+    /https?:\/\/(www\.)?(mercadolivre\.com\.br|produto\.mercadolivre\.com\.br)\/[^\s]+/gi,
+    // Shein
+    /https?:\/\/(www\.)?shein\.com\.br\/[^\s]+/gi,
+    // AliExpress
+    /https?:\/\/(www\.)?(aliexpress\.com|pt\.aliexpress\.com)\/[^\s]+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      links.push(...matches);
+    }
+  }
+
+  // Filter out coupon/category links (must contain product identifier)
+  const productLinks = links.filter(link => {
+    const lower = link.toLowerCase();
+    // Skip cupom/voucher/category pages
+    if (lower.includes('cupom') || lower.includes('voucher') || 
+        lower.includes('/categoria') || lower.includes('/category') ||
+        lower.includes('/collection')) {
+      return false;
+    }
+    // Must contain typical product identifiers
+    return lower.includes('/product') || lower.includes('/-i.') || 
+           lower.includes('/dp/') || lower.includes('/p/') ||
+           lower.includes('/item/') || lower.includes('/MLB-');
+  });
+
+  return productLinks;
+}
+
+function detectStore(url: string): string | null {
+  const lower = url.toLowerCase();
+  
+  if (lower.includes('shopee.com.br') || lower.includes('s.shopee.com.br')) {
+    return 'shopee';
+  }
+  if (lower.includes('amazon.com.br') || lower.includes('amzn.to')) {
+    return 'amazon';
+  }
+  if (lower.includes('magazineluiza.com.br') || lower.includes('magalu.com.br')) {
+    return 'magalu';
+  }
+  if (lower.includes('mercadolivre.com.br')) {
+    return 'ml';
+  }
+  if (lower.includes('shein.com.br')) {
+    return 'shein';
+  }
+  if (lower.includes('aliexpress.com')) {
+    return 'aliexpress';
+  }
+  
+  return null;
 }
 
 async function searchDeals(store: string, credentials: any, automation: Automation) {
