@@ -520,6 +520,15 @@ export default function OfferAutomations() {
               {/* Stores */}
               <div className="space-y-2">
                 <Label>Lojas *</Label>
+                {activeStores.length === 0 && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Nenhuma loja disponível. Para usar automações, configure suas credenciais em{" "}
+                      <strong>Programas de Afiliado</strong>.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Card>
                   <CardContent className="pt-4 grid grid-cols-2 gap-2">
                     {STORES.filter(store => activeStores.includes(store.value)).map((store) => (
@@ -540,8 +549,8 @@ export default function OfferAutomations() {
                       </div>
                     ))}
                     {activeStores.length === 0 && (
-                      <p className="text-sm text-muted-foreground col-span-2">
-                        Nenhuma loja com credenciais ativas. Configure em Programas de Afiliado.
+                      <p className="text-sm text-muted-foreground col-span-2 text-center py-4">
+                        Configure suas credenciais para começar
                       </p>
                     )}
                   </CardContent>
