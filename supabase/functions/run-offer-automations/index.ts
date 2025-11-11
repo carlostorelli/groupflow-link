@@ -283,27 +283,9 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
     const affiliateUrl = affiliateLinkResponse.data?.affiliateUrl || deal.product_url;
 
-    // Generate promotional image with AI
-    let imageUrl: string | null = null;
-    try {
-      console.log('🎨 Gerando imagem promocional...');
-      const imageResponse = await supabase.functions.invoke('generate-offer-image', {
-        body: {
-          productTitle: deal.title,
-          productImage: deal.image_url,
-          price: deal.price,
-          oldPrice: deal.old_price,
-          discount: deal.discount,
-        },
-      });
-
-      if (imageResponse.data?.imageUrl) {
-        imageUrl = imageResponse.data.imageUrl;
-        console.log('✅ Imagem gerada:', imageUrl);
-      }
-    } catch (error) {
-      console.error('⚠️ Erro ao gerar imagem, continuando sem imagem:', error);
-    }
+    // Use product image from store
+    const imageUrl = deal.image_url;
+    console.log('🖼️ Usando imagem do produto:', imageUrl);
 
     // Select random message and CTA
     const messageTemplate = automation.texts[Math.floor(Math.random() * automation.texts.length)];
