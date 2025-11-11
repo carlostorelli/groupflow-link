@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Edit, Play, FileText, AlertCircle, Trash2, X } from "lucide-react";
+import { Plus, Edit, Play, FileText, AlertCircle, Trash2, X, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 
 type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
@@ -90,6 +90,7 @@ export default function OfferAutomations() {
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [activeStores, setActiveStores] = useState<StoreKey[]>([]);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Automation>>({
@@ -354,6 +355,38 @@ export default function OfferAutomations() {
       });
     } finally {
       setRunningId(null);
+    }
+  };
+
+  const handleResetHistory = async (automationId: string, automationName: string) => {
+    if (!confirm(`Deseja realmente resetar o histórico de envios da automação "${automationName}"?\n\nIsso permitirá que produtos já enviados nas últimas 24h sejam enviados novamente.`)) {
+      return;
+    }
+
+    setResettingId(automationId);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-automation-history', {
+        body: { automationId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Histórico resetado",
+        description: data?.message || "O histórico de envios foi limpo com sucesso.",
+      });
+
+      loadAutomations();
+    } catch (error) {
+      console.error("Error resetting history:", error);
+      toast({
+        title: "Erro ao resetar histórico",
+        description: error instanceof Error ? error.message : "Não foi possível resetar o histórico.",
+        variant: "destructive",
+      });
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -799,6 +832,15 @@ export default function OfferAutomations() {
                           title="Executar agora"
                         >
                           <Play className={`h-4 w-4 ${runningId === auto.id ? "animate-pulse" : ""}`} />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleResetHistory(auto.id, auto.name)}
+                          disabled={resettingId === auto.id}
+                          title="Resetar histórico de envios (últimas 24h)"
+                        >
+                          <RotateCcw className={`h-4 w-4 ${resettingId === auto.id ? "animate-spin" : ""}`} />
                         </Button>
                         <Button 
                           variant="ghost" 

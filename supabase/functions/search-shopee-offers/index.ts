@@ -132,11 +132,15 @@ async function searchShopeeProducts(
   else if (searchParams.sortBy === 'sales') sortType = 2;
   else if (searchParams.sortBy === 'commission') sortType = 5;
 
-  // Try to fetch from multiple pages to increase chances of finding category products
-  const maxPages = 3;
+  // Random page selection (1-5) for better variety
+  const randomStartPage = Math.floor(Math.random() * 5) + 1;
+  const pagesToFetch = 2;
   let allProducts: any[] = [];
   
-  for (let page = 1; page <= maxPages; page++) {
+  console.log(`🎲 Iniciando busca na página ${randomStartPage}`);
+  
+  for (let i = 0; i < pagesToFetch; i++) {
+    const page = randomStartPage + i;
     const variables = {
       listType: 0, // 0 = All products
       sortType: sortType,
@@ -296,9 +300,11 @@ async function searchShopeeProducts(
   }
 
   if (searchParams.minDiscount) {
-    filteredProducts = filteredProducts.filter((p: any) => 
-      parseFloat(p.discount) >= searchParams.minDiscount!
-    );
+    filteredProducts = filteredProducts.filter((p: any) => {
+      // Calculate discount percentage from commission
+      const commission = parseFloat(p.commission) || 0;
+      return commission >= searchParams.minDiscount!;
+    });
     console.log(`📊 Pool após filtro de desconto: ${filteredProducts.length} produtos`);
   }
   
@@ -309,6 +315,16 @@ async function searchShopeeProducts(
   // Warning if pool is too small
   if (filteredProducts.length > 0 && filteredProducts.length < 5) {
     console.warn(`⚠️ POOL BAIXO (${filteredProducts.length} produtos) - considere revisar filtros`);
+  }
+
+  // Log first 10 candidates for debugging
+  if (filteredProducts.length > 0) {
+    console.log('🎯 Primeiros 10 candidatos após filtros:');
+    filteredProducts.slice(0, 10).forEach((p: any, i: number) => {
+      const commission = parseFloat(p.commission) || 0;
+      console.log(`   ${i + 1}. ${p.productName}`);
+      console.log(`      Preço: R$ ${parseFloat(p.price).toFixed(2)}, Comissão: R$ ${commission.toFixed(2)}`);
+    });
   }
 
   // Sort products
