@@ -283,51 +283,92 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
     const affiliateUrl = affiliateLinkResponse.data?.affiliateUrl || deal.product_url;
 
+    // Generate promotional image with AI
+    let imageUrl: string | null = null;
+    try {
+      console.log('🎨 Gerando imagem promocional...');
+      const imageResponse = await supabase.functions.invoke('generate-offer-image', {
+        body: {
+          productTitle: deal.title,
+          productImage: deal.image_url,
+          price: deal.price,
+          oldPrice: deal.old_price,
+          discount: deal.discount,
+        },
+      });
+
+      if (imageResponse.data?.imageUrl) {
+        imageUrl = imageResponse.data.imageUrl;
+        console.log('✅ Imagem gerada:', imageUrl);
+      }
+    } catch (error) {
+      console.error('⚠️ Erro ao gerar imagem, continuando sem imagem:', error);
+    }
+
     // Select random message and CTA
-    const message = automation.texts[Math.floor(Math.random() * automation.texts.length)];
-    const cta = automation.ctas[Math.floor(Math.random() * automation.ctas.length)];
+    const messageTemplate = automation.texts[Math.floor(Math.random() * automation.texts.length)];
+    const cta = automation.ctas[Math.floor(Math.random() * automation.ctas.length)] || '🛒 Compre aqui:';
 
-    // Format message
-    const formattedMessage = `${message}
+    // Format message following the user's pattern
+    const formattedMessage = `NADA MELHOR QUE COMPRAR E ECONOMIZAR 🤑🛍️
 
-🏷️ ${deal.title}
-💰 R$ ${deal.price.toFixed(2)}
-${deal.old_price ? `🏷️ De: R$ ${deal.old_price.toFixed(2)}` : ''}
-${deal.discount ? `🎯 ${deal.discount}% OFF` : ''}
+> CORRE QUE VAI ESGOTAR
 
-${cta}
-🔗 ${affiliateUrl}`;
+📦 ${deal.title}
+
+${deal.old_price ? `🪓 De: R$ ${deal.old_price.toFixed(2)}` : ''}
+🔥 Por: R$ ${deal.price.toFixed(2)} 🤑
+
+${cta} ${affiliateUrl}
+
+O preço e disponibilidade do produto podem variar. As promoções são por tempo limitado`;
 
     // Send to all groups
     for (const groupId of automation.send_groups) {
       try {
         console.log(`📨 Enviando para grupo ${groupId}...`);
 
-        // Send message via Evolution API
-        const response = await fetch(
-          `${evolutionUrl}/message/sendText/${instance.instance_id}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': evolutionKey,
-            },
-            body: JSON.stringify({
-              number: groupId,
-              text: formattedMessage,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        // Send image first if available
+        if (imageUrl) {
+          await fetch(
+            `${evolutionUrl}/message/sendMedia/${instance.instance_id}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': evolutionKey,
+              },
+              body: JSON.stringify({
+                number: groupId,
+                mediatype: 'image',
+                media: imageUrl,
+                caption: formattedMessage,
+              }),
+            }
+          );
+        } else {
+          // Send text only if no image
+          await fetch(
+            `${evolutionUrl}/message/sendText/${instance.instance_id}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': evolutionKey,
+              },
+              body: JSON.stringify({
+                number: groupId,
+                text: formattedMessage,
+              }),
+            }
+          );
         }
 
         // Log successful dispatch
         await supabase.from('dispatch_logs').insert({
           user_id: automation.user_id,
           automation_id: automation.id,
-          automation_name: 'Automação', // Could be added to automation table
+          automation_name: 'Automação',
           store,
           group_id: groupId,
           product_url: deal.product_url,
