@@ -406,15 +406,24 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
   // Send each deal to each group
   for (const deal of deals) {
-    // Generate affiliate link
-    const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
-      body: {
-        productUrl: deal.product_url,
-        userId: automation.user_id,
-      },
-    });
+    // Check if deal.product_url is already an affiliate link (short link from API)
+    let affiliateUrl = deal.product_url;
+    
+    // Only generate a new affiliate link if it's NOT already a short link
+    if (!deal.product_url.includes('s.shopee.com.br')) {
+      const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
+        body: {
+          productUrl: deal.product_url,
+          userId: automation.user_id,
+        },
+      });
 
-    const affiliateUrl = affiliateLinkResponse.data?.affiliateUrl || deal.product_url;
+      if (affiliateLinkResponse.data?.affiliateUrl) {
+        affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
+      }
+    } else {
+      console.log('✅ Usando link de afiliado direto da API:', affiliateUrl);
+    }
 
     // Use product image from store
     const imageUrl = deal.image_url;

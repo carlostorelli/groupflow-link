@@ -230,14 +230,17 @@ async function searchShopeeProducts(
     const commission = parseFloat(product.commission) || 0;
     const commissionRate = parseFloat(product.commissionRate) || 0;
     
+    // Priority: use offerLink (already affiliate link) or fallback to productLink
+    const productUrl = product.offerLink || product.productLink || '';
+    
     return {
-      id: product.offerLink || product.productLink || String(Date.now()),
+      id: productUrl || String(Date.now()),
       title: product.productName || 'Produto',
       price,
       old_price: null,
       discount: commission > 0 ? Math.round(commission) : null,
-      image_url: extractImageFromUrl(product.productLink),
-      product_url: product.productLink || product.offerLink || '',
+      image_url: extractImageFromUrl(product.productLink || productUrl),
+      product_url: productUrl,
       category: searchParams.categories?.[0] || 'geral',
       commission: commissionRate * 100,
       sales: 0,
