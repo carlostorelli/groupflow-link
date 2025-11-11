@@ -98,6 +98,7 @@ async function searchShopeeProducts(
   const endpoint = 'https://open-api.affiliate.shopee.com.br/graphql';
   
   // Build GraphQL query for product offers using productOfferV2
+  // Based on working examples - only use fields that exist in the API
   const query = `
     query ProductOfferQuery($page: Int, $limit: Int, $listType: Int, $sortType: Int) {
       productOfferV2(
@@ -113,10 +114,6 @@ async function searchShopeeProducts(
           productName
           productLink
           offerLink
-          productImage
-          shopName
-          categoryId
-          categoryName
         }
         pageInfo {
           page
@@ -228,16 +225,41 @@ async function searchShopeeProducts(
   }
 
   // Transform to our format
+  // Note: productOfferV2 has limited fields compared to other endpoints
+  // We'll extract the product image from the productLink later if needed
   return filteredProducts.map((product: any) => ({
     title: product.productName,
     price: parseFloat(product.price),
-    old_price: null, // productOfferV2 doesn't provide original price directly
-    discount: null, // Will be calculated from commission rate
-    image_url: product.productImage,
+    old_price: null, // Not available in productOfferV2
+    discount: product.commission ? Math.round(parseFloat(product.commission) * 100) : null,
+    image_url: extractImageFromUrl(product.productLink) || 'https://via.placeholder.com/400x400?text=Produto',
     product_url: product.productLink,
-    category: product.categoryName || searchParams.categories?.[0] || 'geral',
+    category: searchParams.categories?.[0] || 'geral',
     commission: parseFloat(product.commissionRate) * 100, // Convert to percentage
     sales: 0, // Not available in productOfferV2
-    shop_name: product.shopName,
+    shop_name: 'Shopee',
   }));
+}
+
+// Helper function to extract product ID from Shopee URL and build image URL
+function extractImageFromUrl(url: string): string | null {
+  try {
+    // Shopee product URLs usually have the format: https://shopee.com.br/product/{shopId}/{itemId}
+    // or contain an itemid parameter
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    
+    // Try to find itemId in path
+    if (pathParts.length >= 3) {
+      const itemId = pathParts[pathParts.length - 1];
+      const shopId = pathParts[pathParts.length - 2];
+      
+      // Shopee image format (may vary)
+      return `https://cf.shopee.com.br/file/${itemId}`;
+    }
+    
+    return null;
+  } catch (error) {
+    return null;
+  }
 }

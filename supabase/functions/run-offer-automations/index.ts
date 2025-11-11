@@ -396,12 +396,14 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
 📦 ${deal.title}
 
-${deal.old_price ? `🪓 De: R$ ${deal.old_price.toFixed(2)}` : ''}
+${deal.discount ? `💥 ${deal.discount}% OFF` : ''}
 🔥 Por: R$ ${deal.price.toFixed(2)} 🤑
 
 ${cta} ${affiliateUrl}
 
-O preço e disponibilidade do produto podem variar. As promoções são por tempo limitado`;
+⚠️ O preço e disponibilidade do produto podem variar. As promoções são por tempo limitado`;
+
+    console.log(`📝 Mensagem formatada para ${deal.title}`);
 
     // Send to all groups
     for (const groupId of automation.send_groups) {
