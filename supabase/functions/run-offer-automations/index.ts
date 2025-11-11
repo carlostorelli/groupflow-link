@@ -92,56 +92,122 @@ serve(async (req) => {
 
     console.log(`📋 Processando ${automations.length} automação(ões)...`);
 
-    // Process each automation
-    for (const automation of automations as Automation[]) {
-      try {
-        console.log(`⚙️ Processando automação: ${automation.id}`);
+  // Process each automation
+  for (const automation of automations as Automation[]) {
+    try {
+      console.log(`⚙️ Processando automação: ${automation.id}`);
 
-        if (automation.mode === 'search') {
-          await processSearchMode(supabase, automation);
-        } else if (automation.mode === 'monitor') {
-          await processMonitorMode(supabase, automation);
-        }
+      // 🔒 LOCK MECHANISM: Try to acquire lock
+      const lockDuration = 90000; // 90 seconds
+      const lockUntil = new Date(now.getTime() + lockDuration);
 
-        // Update automation run times
-        const nextRun = new Date(now.getTime() + automation.interval_minutes * 60000);
-        await supabase
-          .from('automations')
-          .update({
-            last_run_at: now.toISOString(),
-            next_run_at: nextRun.toISOString(),
-            last_error: null,
-          })
-          .eq('id', automation.id);
-
-        console.log(`✅ Automação ${automation.id} processada com sucesso`);
-
-      } catch (error) {
-        console.error(`❌ Erro ao processar automação ${automation.id}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        
-        // Log error to dispatch_logs for visibility
-        await supabase.from('dispatch_logs').insert({
-          user_id: automation.user_id,
+      // Upsert automation_runs with lock
+      const { data: runState, error: lockError } = await supabase
+        .from('automation_runs')
+        .upsert({
           automation_id: automation.id,
-          automation_name: automation.name || 'Automação',
-          store: automation.stores[0] || 'shopee',
-          group_id: 'system',
-          product_url: 'https://error.log',
-          status: 'error',
-          error: errorMessage,
-        });
-        
-        // Update automation with error
-        await supabase
-          .from('automations')
-          .update({
-            last_error: errorMessage,
-            last_run_at: now.toISOString(),
-          })
-          .eq('id', automation.id);
+          lock_until: lockUntil.toISOString(),
+        }, {
+          onConflict: 'automation_id'
+        })
+        .select('last_sent_at, next_run_at, lock_until')
+        .single();
+
+      if (lockError) {
+        console.error('❌ Erro ao adquirir lock:', lockError);
+        continue;
       }
+
+      // Check if locked by another worker
+      if (runState?.lock_until && new Date(runState.lock_until) > now) {
+        const timeDiff = new Date(runState.lock_until).getTime() - now.getTime();
+        if (timeDiff > 1000) { // More than 1 second means another worker is running
+          console.log(`🔒 Automação ${automation.id} está sendo processada por outro worker`);
+          continue;
+        }
+      }
+
+      // Check if we should run based on interval
+      if (runState?.last_sent_at) {
+        const lastSent = new Date(runState.last_sent_at);
+        const intervalMs = automation.interval_minutes * 60 * 1000;
+        const timeSinceLastSent = now.getTime() - lastSent.getTime();
+        
+        if (timeSinceLastSent < intervalMs) {
+          const remaining = Math.ceil((intervalMs - timeSinceLastSent) / 1000 / 60);
+          console.log(`⏰ Automação ${automation.id} executada há ${Math.ceil(timeSinceLastSent/1000/60)}min, aguardando mais ${remaining}min`);
+          
+          // Release lock
+          await supabase
+            .from('automation_runs')
+            .update({ lock_until: new Date(now.getTime() - 1000).toISOString() })
+            .eq('automation_id', automation.id);
+          
+          continue;
+        }
+      }
+
+      if (automation.mode === 'search') {
+        await processSearchMode(supabase, automation);
+      } else if (automation.mode === 'monitor') {
+        await processMonitorMode(supabase, automation);
+      }
+
+      // Update automation run times and release lock
+      const nextRun = new Date(now.getTime() + automation.interval_minutes * 60000);
+      await supabase
+        .from('automations')
+        .update({
+          last_run_at: now.toISOString(),
+          next_run_at: nextRun.toISOString(),
+          last_error: null,
+        })
+        .eq('id', automation.id);
+
+      // Update automation_runs to mark successful execution
+      await supabase
+        .from('automation_runs')
+        .update({
+          last_sent_at: now.toISOString(),
+          next_run_at: nextRun.toISOString(),
+          lock_until: new Date(now.getTime() - 1000).toISOString(),
+        })
+        .eq('automation_id', automation.id);
+
+      console.log(`✅ Automação ${automation.id} processada com sucesso`);
+
+    } catch (error) {
+      console.error(`❌ Erro ao processar automação ${automation.id}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+      // Log error to dispatch_logs for visibility
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automation.id,
+        automation_name: automation.name || 'Automação',
+        store: automation.stores[0] || 'shopee',
+        group_id: 'system',
+        product_url: 'https://error.log',
+        status: 'error',
+        error: errorMessage,
+      });
+      
+      // Update automation with error and release lock
+      await supabase
+        .from('automations')
+        .update({
+          last_error: errorMessage,
+          last_run_at: now.toISOString(),
+        })
+        .eq('id', automation.id);
+
+      // Release lock on error
+      await supabase
+        .from('automation_runs')
+        .update({ lock_until: new Date(now.getTime() - 1000).toISOString() })
+        .eq('automation_id', automation.id);
     }
+  }
 
     return new Response(
       JSON.stringify({ 
@@ -337,7 +403,7 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 }
 
 async function sendDealsToGroups(supabase: any, automation: Automation, deals: any[], store: string) {
-  console.log(`📤 Enviando ${deals.length} oferta(s) para ${automation.send_groups.length} grupo(s)...`);
+  console.log(`📤 Processando ${deals.length} oferta(s)...`);
 
   // Validate send_groups
   if (!automation.send_groups || automation.send_groups.length === 0) {
@@ -401,48 +467,85 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
 
   console.log(`✅ Instância WhatsApp encontrada: ${instance.instance_id}`);
 
-  // Helper function to add delay between messages
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  // 🔥 ANTI-FLOOD: Get products already sent in last 24h
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const { data: recentlySent } = await supabase
+    .from('dispatch_logs')
+    .select('product_url')
+    .eq('automation_id', automation.id)
+    .eq('status', 'sent')
+    .gte('created_at', yesterday.toISOString());
 
-  // Send each deal to each group
-  for (const deal of deals) {
-    let affiliateUrl = deal.product_url;
+  const sentUrls = new Set(recentlySent?.map((log: any) => log.product_url) || []);
+  console.log(`📋 ${sentUrls.size} produto(s) já enviado(s) nas últimas 24h`);
+
+  // Find first non-duplicate deal
+  const nextDeal = deals.find(d => !sentUrls.has(d.product_url));
+
+  if (!nextDeal) {
+    console.log('✅ Todos os produtos já foram enviados recentemente (deduplicação 24h)');
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store,
+      group_id: 'system',
+      product_url: 'https://info.log',
+      status: 'skipped',
+      error: 'Nenhum produto novo encontrado (deduplicação 24h)',
+    });
+    return;
+  }
+
+  console.log(`🎯 Enviando APENAS 1 produto: ${nextDeal.title}`);
+  const deal = nextDeal;
+  let affiliateUrl = deal.product_url;
+  
+  // Always ensure we have a short link format
+  // If it's not already a short link, generate one
+  if (!affiliateUrl || !affiliateUrl.includes('s.shopee.com.br')) {
+    console.log('🔗 Gerando link curto para:', deal.product_url);
     
-    // Always ensure we have a short link format
-    // If it's not already a short link, generate one
-    if (!affiliateUrl || !affiliateUrl.includes('s.shopee.com.br')) {
-      console.log('🔗 Gerando link curto para:', deal.product_url);
-      
-      const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
-        body: {
-          productUrl: deal.product_url || deal.image_url, // Fallback to any available URL
-          userId: automation.user_id,
-        },
-      });
+    const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
+      body: {
+        productUrl: deal.product_url || deal.image_url, // Fallback to any available URL
+        userId: automation.user_id,
+      },
+    });
 
-      if (affiliateLinkResponse.data?.affiliateUrl) {
-        affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
-        console.log('✅ Link curto gerado:', affiliateUrl);
-      } else {
-        console.error('❌ Falha ao gerar link curto, pulando oferta');
-        continue; // Skip this offer if we can't generate a short link
-      }
+    if (affiliateLinkResponse.data?.affiliateUrl) {
+      affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
+      console.log('✅ Link curto gerado:', affiliateUrl);
     } else {
-      console.log('✅ Usando link curto da API:', affiliateUrl);
+      console.error('❌ Falha ao gerar link curto, abortando envio');
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automation.id,
+        automation_name: automation.name || 'Automação',
+        store,
+        group_id: 'system',
+        product_url: deal.product_url,
+        status: 'error',
+        error: 'Falha ao gerar link de afiliado',
+      });
+      return;
     }
+  } else {
+    console.log('✅ Usando link curto da API:', affiliateUrl);
+  }
 
-    // Use product image from store
-    const imageUrl = deal.image_url;
-    console.log('🖼️ Usando imagem do produto:', imageUrl);
+  // Use product image from store
+  const imageUrl = deal.image_url;
+  console.log('🖼️ Usando imagem do produto:', imageUrl);
 
-    // Select random message and CTA
-    const messageTemplate = automation.texts[Math.floor(Math.random() * automation.texts.length)];
-    const cta = automation.ctas && automation.ctas.length > 0 
-      ? automation.ctas[Math.floor(Math.random() * automation.ctas.length)]
-      : '🛒 Compre aqui:';
+  // Select random message and CTA
+  const messageTemplate = automation.texts[Math.floor(Math.random() * automation.texts.length)];
+  const cta = automation.ctas && automation.ctas.length > 0 
+    ? automation.ctas[Math.floor(Math.random() * automation.ctas.length)]
+    : '🛒 Compre aqui:';
 
-    // Format message following the user's pattern
-    const formattedMessage = `NADA MELHOR QUE COMPRAR E ECONOMIZAR 🤑🛍️
+  // Format message following the user's pattern
+  const formattedMessage = `NADA MELHOR QUE COMPRAR E ECONOMIZAR 🤑🛍️
 
 > CORRE QUE VAI ESGOTAR
 
@@ -455,89 +558,91 @@ ${cta} ${affiliateUrl}
 
 ⚠️ O preço e disponibilidade do produto podem variar. As promoções são por tempo limitado`;
 
-    console.log(`📝 Mensagem formatada para ${deal.title}`);
+  console.log(`📝 Mensagem formatada para ${deal.title}`);
 
-    // Send to all groups
-    for (const groupId of automation.send_groups) {
-      try {
-        console.log(`📨 Enviando para grupo ${groupId}...`);
+  // Helper function to add delay between messages
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-        // Encode instance name for URL (important for special characters)
-        const encodedInstanceId = encodeURIComponent(instance.instance_id);
+  // Send to all groups (3 second delay between each group)
+  for (const groupId of automation.send_groups) {
+    try {
+      console.log(`📨 Enviando para grupo ${groupId}...`);
 
-        let response;
-        let responseData;
+      // Encode instance name for URL (important for special characters)
+      const encodedInstanceId = encodeURIComponent(instance.instance_id);
 
-        // TEMPORARY: Sending text only (image disabled for testing)
-        console.log('📝 Enviando apenas texto (imagem desabilitada temporariamente)');
-        response = await fetch(
-          `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': evolutionKey,
-            },
-            body: JSON.stringify({
-              number: groupId,
-              text: formattedMessage,
-            }),
-          }
-        );
+      let response;
+      let responseData;
 
-        // Check if request was successful
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`❌ Evolution API retornou erro ${response.status}:`, errorText);
-          throw new Error(`Evolution API retornou ${response.status}: ${errorText}`);
+      // TEMPORARY: Sending text only (image disabled for testing)
+      console.log('📝 Enviando apenas texto (imagem desabilitada temporariamente)');
+      response = await fetch(
+        `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionKey,
+          },
+          body: JSON.stringify({
+            number: groupId,
+            text: formattedMessage,
+          }),
         }
+      );
 
-        // Parse response
-        responseData = await response.json();
-        console.log('📥 Resposta da Evolution API:', JSON.stringify(responseData));
-
-        // Check if Evolution API reported an error in the response
-        if (responseData.error || !responseData.key) {
-          const errorMsg = responseData.error || 'Resposta inválida da Evolution API';
-          console.error(`❌ Erro na resposta da Evolution:`, errorMsg);
-          throw new Error(errorMsg);
-        }
-
-        // Log successful dispatch ONLY if everything worked
-        await supabase.from('dispatch_logs').insert({
-          user_id: automation.user_id,
-          automation_id: automation.id,
-          automation_name: 'Automação',
-          store,
-          group_id: groupId,
-          product_url: deal.product_url,
-          affiliate_url: affiliateUrl,
-          status: 'sent',
-        });
-
-        console.log(`✅ Mensagem enviada com sucesso para ${groupId} (key: ${responseData.key?.id || 'N/A'})`);
-
-        // Add 3 second delay between messages to avoid flood
-        console.log('⏳ Aguardando 3 segundos antes da próxima mensagem...');
-        await delay(3000);
-
-      } catch (error) {
-        console.error(`❌ Erro ao enviar para grupo ${groupId}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-
-        // Log failed dispatch
-        await supabase.from('dispatch_logs').insert({
-          user_id: automation.user_id,
-          automation_id: automation.id,
-          automation_name: 'Automação',
-          store,
-          group_id: groupId,
-          product_url: deal.product_url,
-          affiliate_url: affiliateUrl,
-          status: 'error',
-          error: errorMessage,
-        });
+      // Check if request was successful
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Evolution API retornou erro ${response.status}:`, errorText);
+        throw new Error(`Evolution API retornou ${response.status}: ${errorText}`);
       }
+
+      // Parse response
+      responseData = await response.json();
+      console.log('📥 Resposta da Evolution API:', JSON.stringify(responseData));
+
+      // Check if Evolution API reported an error in the response
+      if (responseData.error || !responseData.key) {
+        const errorMsg = responseData.error || 'Resposta inválida da Evolution API';
+        console.error(`❌ Erro na resposta da Evolution:`, errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Log successful dispatch ONLY if everything worked
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automation.id,
+        automation_name: automation.name || 'Automação',
+        store,
+        group_id: groupId,
+        product_url: deal.product_url,
+        affiliate_url: affiliateUrl,
+        status: 'sent',
+      });
+
+      console.log(`✅ Mensagem enviada com sucesso para ${groupId} (key: ${responseData.key?.id || 'N/A'})`);
+
+      // Add 3 second delay between messages to avoid flood
+      console.log('⏳ Aguardando 3 segundos antes da próxima mensagem...');
+      await delay(3000);
+
+    } catch (error) {
+      console.error(`❌ Erro ao enviar para grupo ${groupId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
+      // Log failed dispatch
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automation.id,
+        automation_name: automation.name || 'Automação',
+        store,
+        group_id: groupId,
+        product_url: deal.product_url,
+        affiliate_url: affiliateUrl,
+        status: 'error',
+        error: errorMessage,
+      });
     }
   }
 }

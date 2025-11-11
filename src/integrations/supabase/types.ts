@@ -92,6 +92,41 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_runs: {
+        Row: {
+          automation_id: string
+          created_at: string
+          last_sent_at: string | null
+          lock_until: string | null
+          next_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          automation_id: string
+          created_at?: string
+          last_sent_at?: string | null
+          lock_until?: string | null
+          next_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          automation_id?: string
+          created_at?: string
+          last_sent_at?: string | null
+          lock_until?: string | null
+          next_run_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: true
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automations: {
         Row: {
           categories: string[]
