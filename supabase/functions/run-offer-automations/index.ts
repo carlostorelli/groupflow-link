@@ -379,8 +379,24 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       
       // Fetch recent messages from the group
       const encodedInstanceId = encodeURIComponent(instance.instance_id);
+      
+      // Get instance owner JID first to ignore own messages
+      const instanceInfoResponse = await fetch(
+        `${evolutionUrl}/instance/fetchInstances?instanceName=${encodedInstanceId}`,
+        {
+          headers: { 'apikey': evolutionKey },
+        }
+      );
+
+      let ownerJid = null;
+      if (instanceInfoResponse.ok) {
+        const instanceInfo = await instanceInfoResponse.json();
+        ownerJid = instanceInfo[0]?.instance?.owner;
+        console.log(`👤 Owner JID: ${ownerJid}`);
+      }
+      
       const messagesResponse = await fetch(
-        `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
+        `${evolutionUrl}/message/findMessages/${encodedInstanceId}`,
         {
           method: 'POST',
           headers: {
@@ -399,27 +415,14 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       );
 
       if (!messagesResponse.ok) {
-        console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}`);
+        const errorText = await messagesResponse.text();
+        console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}: ${errorText}`);
         continue;
       }
 
-      const messages = await messagesResponse.json();
+      const messagesData = await messagesResponse.json();
+      const messages = Array.isArray(messagesData) ? messagesData : (messagesData.messages || []);
       console.log(`📨 Encontradas ${messages.length || 0} mensagens no grupo`);
-
-      // Get instance owner JID to ignore own messages
-      const instanceInfoResponse = await fetch(
-        `${evolutionUrl}/instance/fetchInstances?instanceName=${encodedInstanceId}`,
-        {
-          headers: { 'apikey': evolutionKey },
-        }
-      );
-
-      let ownerJid = null;
-      if (instanceInfoResponse.ok) {
-        const instanceInfo = await instanceInfoResponse.json();
-        ownerJid = instanceInfo[0]?.instance?.owner;
-        console.log(`👤 Owner JID: ${ownerJid}`);
-      }
 
       // Process messages
       if (messages && Array.isArray(messages)) {
