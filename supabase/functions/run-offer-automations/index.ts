@@ -382,7 +382,7 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       
       // Get instance owner JID first to ignore own messages
       const instanceInfoResponse = await fetch(
-        `${evolutionUrl}/instance/fetchInstances?instanceName=${encodedInstanceId}`,
+        `${evolutionUrl}/instance/fetchInstances`,
         {
           headers: { 'apikey': evolutionKey },
         }
@@ -390,8 +390,9 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 
       let ownerJid = null;
       if (instanceInfoResponse.ok) {
-        const instanceInfo = await instanceInfoResponse.json();
-        ownerJid = instanceInfo[0]?.instance?.owner;
+        const instancesArray = await instanceInfoResponse.json();
+        const instanceInfo = instancesArray?.find((i: any) => i?.instance?.instanceName === instance.instance_id);
+        ownerJid = instanceInfo?.instance?.owner;
         console.log(`👤 Owner JID: ${ownerJid}`);
       }
       
