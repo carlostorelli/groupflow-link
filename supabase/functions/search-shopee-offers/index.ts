@@ -229,13 +229,14 @@ async function searchShopeeProducts(
     'automotivo': ['\\bautomotivo\\b', '\\bcarro\\b', '\\bmoto\\b', '\\bpeca\\b', '\\bpeça\\b', '\\bacessorio carro\\b', '\\bacessório carro\\b', '\\bsuporte\\b', '\\boleo\\b', '\\bóleo\\b', '\\bfiltro\\b']
   };
   
-  // Filter by categories/keywords (if provided)
+  // Filter by categories/keywords (if provided) - USING OR LOGIC
   if (searchParams.categories && searchParams.categories.length > 0) {
-    console.log(`🔍 Filtrando por categorias: ${searchParams.categories.join(', ')}`);
+    console.log(`🔍 Filtrando por categorias (OR): ${searchParams.categories.join(', ')}`);
     
     filteredProducts = allProducts.filter((p: any) => {
       const productName = (p.productName || '').toLowerCase();
       
+      // OR logic: product matches if it contains ANY of the selected categories
       return searchParams.categories!.some(category => {
         const categoryLower = category.toLowerCase();
         
@@ -255,12 +256,13 @@ async function searchShopeeProducts(
       });
     });
     
-    console.log(`✅ ${filteredProducts.length} produtos encontrados para as categorias selecionadas`);
+    console.log(`📊 Pool após filtro de categorias: ${filteredProducts.length} produtos`);
     
-    // Log some product names for debugging
-    if (filteredProducts.length > 0 && filteredProducts.length < 5) {
-      filteredProducts.forEach((p: any) => {
-        console.log(`   - ${p.productName}`);
+    // Log first 5 filtered products for debugging
+    if (filteredProducts.length > 0) {
+      console.log('📝 Primeiros produtos filtrados:');
+      filteredProducts.slice(0, 5).forEach((p: any, i: number) => {
+        console.log(`   ${i + 1}. ${p.productName}`);
       });
     }
     
@@ -283,18 +285,30 @@ async function searchShopeeProducts(
     filteredProducts = filteredProducts.filter((p: any) => 
       parseFloat(p.price) >= searchParams.minPrice!
     );
+    console.log(`📊 Pool após filtro de preço mínimo: ${filteredProducts.length} produtos`);
   }
 
   if (searchParams.maxPrice) {
     filteredProducts = filteredProducts.filter((p: any) => 
       parseFloat(p.price) <= searchParams.maxPrice!
     );
+    console.log(`📊 Pool após filtro de preço máximo: ${filteredProducts.length} produtos`);
   }
 
   if (searchParams.minDiscount) {
     filteredProducts = filteredProducts.filter((p: any) => 
       parseFloat(p.discount) >= searchParams.minDiscount!
     );
+    console.log(`📊 Pool após filtro de desconto: ${filteredProducts.length} produtos`);
+  }
+  
+  // SHUFFLE products to increase variety
+  filteredProducts = filteredProducts.sort(() => Math.random() - 0.5);
+  console.log(`🔀 Pool embaralhado: ${filteredProducts.length} produtos`);
+  
+  // Warning if pool is too small
+  if (filteredProducts.length > 0 && filteredProducts.length < 5) {
+    console.warn(`⚠️ POOL BAIXO (${filteredProducts.length} produtos) - considere revisar filtros`);
   }
 
   // Sort products
