@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Edit, Play, FileText, AlertCircle, Trash2, X, RotateCcw } from "lucide-react";
+import { Plus, Edit, Play, FileText, AlertCircle, Trash2, X, RotateCcw, Star } from "lucide-react";
 import { format } from "date-fns";
 
 type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
@@ -52,6 +52,7 @@ interface Group {
   id: string;
   name: string;
   wa_group_id: string;
+  is_favorite: boolean;
 }
 
 const STORES: { value: StoreKey; label: string }[] = [
@@ -177,15 +178,52 @@ export default function OfferAutomations() {
     try {
       const { data, error } = await supabase
         .from("groups")
-        .select("id, name, wa_group_id, is_admin")
+        .select("id, name, wa_group_id, is_admin, is_favorite")
         .eq("user_id", user?.id)
         .eq("is_admin", true)
+        .order("is_favorite", { ascending: false })
         .order("name");
 
       if (error) throw error;
       setGroups(data || []);
     } catch (error) {
       console.error("Error loading groups:", error);
+    }
+  };
+
+  const toggleFavorite = async (groupId: string) => {
+    try {
+      const group = groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      const { error } = await supabase
+        .from("groups")
+        .update({ is_favorite: !group.is_favorite })
+        .eq("id", groupId);
+
+      if (error) throw error;
+
+      // Update local state
+      setGroups(groups.map(g => 
+        g.id === groupId ? { ...g, is_favorite: !g.is_favorite } : g
+      ).sort((a, b) => {
+        // Sort favorites first
+        if (a.is_favorite && !b.is_favorite) return -1;
+        if (!a.is_favorite && b.is_favorite) return 1;
+        return a.name.localeCompare(b.name);
+      }));
+
+      toast({
+        title: group.is_favorite ? "Removido dos favoritos" : "Adicionado aos favoritos",
+        description: `"${group.name}" ${group.is_favorite ? "não é mais favorito" : "agora é favorito"}`,
+      });
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o favorito.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -540,7 +578,7 @@ export default function OfferAutomations() {
                 <Card>
                   <CardContent className="pt-4 max-h-40 overflow-y-auto">
                     {groups.map((group) => (
-                      <div key={group.id} className="flex items-center space-x-2 mb-2">
+                      <div key={group.id} className="flex items-center space-x-2 mb-2 group/item">
                         <Checkbox
                           checked={formData.send_groups?.includes(group.wa_group_id)}
                           onCheckedChange={(checked) => {
@@ -553,7 +591,17 @@ export default function OfferAutomations() {
                             });
                           }}
                         />
-                        <Label className="cursor-pointer">{group.name}</Label>
+                        <Label className="cursor-pointer flex-1">{group.name}</Label>
+                        <button
+                          type="button"
+                          onClick={() => toggleFavorite(group.id)}
+                          className="opacity-50 hover:opacity-100 transition-opacity"
+                          title={group.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                        >
+                          <Star 
+                            className={`h-4 w-4 ${group.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`}
+                          />
+                        </button>
                       </div>
                     ))}
                   </CardContent>
@@ -581,7 +629,17 @@ export default function OfferAutomations() {
                               });
                             }}
                           />
-                          <Label className="cursor-pointer">{group.name}</Label>
+                          <Label className="cursor-pointer flex-1">{group.name}</Label>
+                          <button
+                            type="button"
+                            onClick={() => toggleFavorite(group.id)}
+                            className="opacity-50 hover:opacity-100 transition-opacity"
+                            title={group.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                          >
+                            <Star 
+                              className={`h-4 w-4 ${group.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`}
+                            />
+                          </button>
                         </div>
                       ))}
                     </CardContent>
