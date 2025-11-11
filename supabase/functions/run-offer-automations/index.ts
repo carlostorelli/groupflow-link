@@ -410,9 +410,13 @@ ${cta} ${affiliateUrl}
       try {
         console.log(`📨 Enviando para grupo ${groupId}...`);
 
+        let response;
+        let responseData;
+
         // Send image first if available
         if (imageUrl) {
-          await fetch(
+          console.log('🖼️ Enviando com imagem:', imageUrl);
+          response = await fetch(
             `${evolutionUrl}/message/sendMedia/${instance.instance_id}`,
             {
               method: 'POST',
@@ -429,8 +433,8 @@ ${cta} ${affiliateUrl}
             }
           );
         } else {
-          // Send text only if no image
-          await fetch(
+          console.log('📝 Enviando apenas texto');
+          response = await fetch(
             `${evolutionUrl}/message/sendText/${instance.instance_id}`,
             {
               method: 'POST',
@@ -446,7 +450,25 @@ ${cta} ${affiliateUrl}
           );
         }
 
-        // Log successful dispatch
+        // Check if request was successful
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ Evolution API retornou erro ${response.status}:`, errorText);
+          throw new Error(`Evolution API retornou ${response.status}: ${errorText}`);
+        }
+
+        // Parse response
+        responseData = await response.json();
+        console.log('📥 Resposta da Evolution API:', JSON.stringify(responseData));
+
+        // Check if Evolution API reported an error in the response
+        if (responseData.error || !responseData.key) {
+          const errorMsg = responseData.error || 'Resposta inválida da Evolution API';
+          console.error(`❌ Erro na resposta da Evolution:`, errorMsg);
+          throw new Error(errorMsg);
+        }
+
+        // Log successful dispatch ONLY if everything worked
         await supabase.from('dispatch_logs').insert({
           user_id: automation.user_id,
           automation_id: automation.id,
@@ -458,7 +480,7 @@ ${cta} ${affiliateUrl}
           status: 'sent',
         });
 
-        console.log(`✅ Enviado com sucesso para ${groupId}`);
+        console.log(`✅ Mensagem enviada com sucesso para ${groupId} (key: ${responseData.key?.id || 'N/A'})`);
 
       } catch (error) {
         console.error(`❌ Erro ao enviar para grupo ${groupId}:`, error);
