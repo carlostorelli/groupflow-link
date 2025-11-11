@@ -804,7 +804,14 @@ export type Database = {
         | "change_group_photo"
       job_status: "pending" | "running" | "done" | "failed"
       priority_type: "discount" | "price"
-      store_key: "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress"
+      store_key:
+        | "shopee"
+        | "amazon"
+        | "magalu"
+        | "ml"
+        | "shein"
+        | "aliexpress"
+        | "awin"
       user_plan: "free" | "pro" | "elite"
     }
     CompositeTypes: {
@@ -950,7 +957,15 @@ export const Constants = {
       ],
       job_status: ["pending", "running", "done", "failed"],
       priority_type: ["discount", "price"],
-      store_key: ["shopee", "amazon", "magalu", "ml", "shein", "aliexpress"],
+      store_key: [
+        "shopee",
+        "amazon",
+        "magalu",
+        "ml",
+        "shein",
+        "aliexpress",
+        "awin",
+      ],
       user_plan: ["free", "pro", "elite"],
     },
   },
