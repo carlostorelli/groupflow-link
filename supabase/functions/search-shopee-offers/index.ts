@@ -187,18 +187,33 @@ async function searchShopeeProducts(
 
   // Filter products based on search parameters
   let filteredProducts = products;
-
-  // Filter by categories/keywords (if provided)
+  
+  console.log(`📊 Total de produtos da API: ${products.length}`);
+  
+  // Try to filter by categories/keywords (if provided), but keep all if none match
   if (searchParams.categories && searchParams.categories.length > 0) {
-    filteredProducts = filteredProducts.filter((p: any) => {
+    console.log(`🔍 Tentando filtrar por categorias: ${searchParams.categories.join(', ')}`);
+    
+    const categorizedProducts = products.filter((p: any) => {
       const productName = (p.productName || '').toLowerCase();
       // Check if product name contains any of the category keywords
       return searchParams.categories!.some(category => {
         const keywords = category.toLowerCase().split(' ');
-        return keywords.some(keyword => productName.includes(keyword));
+        return keywords.some(keyword => keyword.length > 2 && productName.includes(keyword));
       });
     });
-    console.log(`🔍 Filtrados ${filteredProducts.length} produtos por categoria`);
+    
+    console.log(`📦 Produtos encontrados com categorias: ${categorizedProducts.length}`);
+    
+    // Only apply filter if at least some products match
+    if (categorizedProducts.length > 0) {
+      filteredProducts = categorizedProducts;
+      console.log(`✅ Usando ${filteredProducts.length} produtos filtrados por categoria`);
+    } else {
+      console.log(`⚠️ Nenhum produto encontrado com as categorias especificadas, usando todos os ${products.length} produtos`);
+      // Keep all products if category filter returns nothing
+      filteredProducts = products;
+    }
   }
 
   // Filter by keyword (alternative to categories)
