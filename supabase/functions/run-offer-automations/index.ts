@@ -450,64 +450,22 @@ ${cta} ${affiliateUrl}
         let response;
         let responseData;
 
-        // Try sending with image (as base64)
-        if (imageUrl) {
-          console.log('🖼️ Baixando e enviando imagem:', imageUrl);
-          const base64Image = await fetchImageAsBase64(imageUrl);
-          
-          if (base64Image) {
-            // Send as base64
-            response = await fetch(
-              `${evolutionUrl}/message/sendMedia/${encodedInstanceId}`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': evolutionKey,
-                },
-                body: JSON.stringify({
-                  number: groupId,
-                  mediatype: 'image',
-                  media: base64Image,
-                  caption: formattedMessage,
-                }),
-              }
-            );
-          } else {
-            // Fallback to text only if image download failed
-            console.log('⚠️ Falha ao baixar imagem, enviando apenas texto');
-            response = await fetch(
-              `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': evolutionKey,
-                },
-                body: JSON.stringify({
-                  number: groupId,
-                  text: formattedMessage,
-                }),
-              }
-            );
+        // TEMPORARY: Sending text only (image disabled for testing)
+        console.log('📝 Enviando apenas texto (imagem desabilitada temporariamente)');
+        response = await fetch(
+          `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionKey,
+            },
+            body: JSON.stringify({
+              number: groupId,
+              text: formattedMessage,
+            }),
           }
-        } else {
-          console.log('📝 Enviando apenas texto');
-          response = await fetch(
-            `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': evolutionKey,
-              },
-              body: JSON.stringify({
-                number: groupId,
-                text: formattedMessage,
-              }),
-            }
-          );
-        }
+        );
 
         // Check if request was successful
         if (!response.ok) {
