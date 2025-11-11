@@ -18,6 +18,7 @@ interface AffiliateCredential {
   credentials: Record<string, string>;
   auto_generate: boolean;
   is_active: boolean;
+  selected_brands?: string[]; // For Awin: selected advertiser brands
 }
 
 interface StoreConfig {
@@ -31,6 +32,23 @@ interface StoreConfig {
   }[];
   description: string;
 }
+
+// Popular brands available through Awin Brazil
+const AWIN_BRANDS = [
+  "Beleza na Web",
+  "C&A", 
+  "Dafiti",
+  "Eudora",
+  "Natura",
+  "O Boticário",
+  "Amend",
+  "Amaro",
+  "Netshoes",
+  "Zattini",
+  "Centauro",
+  "Shop2gether",
+  "Tricae",
+];
 
 const STORE_CONFIGS: StoreConfig[] = [
   {
@@ -133,12 +151,16 @@ export default function AffiliatePrograms() {
 
       // Fill in saved credentials
       data?.forEach((cred) => {
+        const credentials = cred.credentials as Record<string, string>;
         credsMap[cred.store as StoreKey] = {
           id: cred.id,
           store: cred.store as StoreKey,
-          credentials: cred.credentials as Record<string, string>,
+          credentials: credentials,
           auto_generate: cred.auto_generate,
           is_active: cred.is_active,
+          selected_brands: cred.store === 'awin' && credentials?.selected_brands 
+            ? (credentials.selected_brands as string[])
+            : undefined,
         };
       });
 
@@ -168,7 +190,10 @@ export default function AffiliatePrograms() {
       const payload = {
         user_id: user?.id,
         store: storeKey,
-        credentials: cred.credentials,
+        credentials: {
+          ...cred.credentials,
+          ...(storeKey === 'awin' && cred.selected_brands ? { selected_brands: cred.selected_brands } : {})
+        },
         auto_generate: cred.auto_generate,
         is_active: allFieldsFilled || false,
       };
@@ -262,6 +287,21 @@ export default function AffiliatePrograms() {
     });
   };
 
+  const toggleBrand = (storeKey: StoreKey, brand: string) => {
+    const current = credentials[storeKey]?.selected_brands || [];
+    const updated = current.includes(brand)
+      ? current.filter((b) => b !== brand)
+      : [...current, brand];
+    
+    setCredentials({
+      ...credentials,
+      [storeKey]: {
+        ...credentials[storeKey],
+        selected_brands: updated,
+      },
+    });
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64">Carregando...</div>;
   }
@@ -320,6 +360,39 @@ export default function AffiliatePrograms() {
                     />
                   </div>
                 ))}
+
+                {/* Awin Brand Selection */}
+                {config.key === "awin" && allFieldsFilled && (
+                  <div className="space-y-3 pt-4 border-t">
+                    <Label className="text-sm font-medium">
+                      Selecione as marcas que deseja usar:
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded-md">
+                      {AWIN_BRANDS.map((brand) => (
+                        <div key={brand} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`${config.key}-${brand}`}
+                            checked={cred?.selected_brands?.includes(brand) || false}
+                            onChange={() => toggleBrand(config.key, brand)}
+                            className="rounded border-gray-300"
+                          />
+                          <Label
+                            htmlFor={`${config.key}-${brand}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {brand}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {cred?.selected_brands && cred.selected_brands.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {cred.selected_brands.length} marca(s) selecionada(s)
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center space-x-2">
