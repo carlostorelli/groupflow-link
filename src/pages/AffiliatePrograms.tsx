@@ -153,18 +153,26 @@ export default function AffiliatePrograms() {
       data?.forEach((cred) => {
         const credentialsData = cred.credentials as Record<string, any>;
         
-        // Extract selected_brands from credentials JSONB if it exists
-        const { selected_brands, ...restCredentials } = credentialsData;
+        // For Awin, extract selected_brands separately
+        let cleanCredentials = { ...credentialsData };
+        let selectedBrands: string[] | undefined = undefined;
+        
+        if (cred.store === 'awin' && credentialsData.selected_brands) {
+          selectedBrands = Array.isArray(credentialsData.selected_brands) 
+            ? credentialsData.selected_brands 
+            : undefined;
+          // Remove selected_brands from credentials object for Awin
+          const { selected_brands, ...rest } = credentialsData;
+          cleanCredentials = rest;
+        }
         
         credsMap[cred.store as StoreKey] = {
           id: cred.id,
           store: cred.store as StoreKey,
-          credentials: restCredentials,
+          credentials: cleanCredentials,
           auto_generate: cred.auto_generate,
           is_active: cred.is_active,
-          selected_brands: cred.store === 'awin' && Array.isArray(selected_brands)
-            ? selected_brands
-            : undefined,
+          selected_brands: selectedBrands,
         };
       });
 
@@ -288,7 +296,7 @@ export default function AffiliatePrograms() {
       [storeKey]: {
         ...credentials[storeKey],
         credentials: {
-          ...credentials[storeKey].credentials,
+          ...(credentials[storeKey]?.credentials || {}),
           [field]: value,
         },
       },
