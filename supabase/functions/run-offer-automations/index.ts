@@ -9,6 +9,7 @@ const corsHeaders = {
 interface Automation {
   id: string;
   user_id: string;
+  name: string;
   mode: 'search' | 'monitor';
   status: 'active' | 'paused';
   stores: string[];
@@ -119,6 +120,18 @@ serve(async (req) => {
         console.error(`❌ Erro ao processar automação ${automation.id}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
         
+        // Log error to dispatch_logs for visibility
+        await supabase.from('dispatch_logs').insert({
+          user_id: automation.user_id,
+          automation_id: automation.id,
+          automation_name: automation.name || 'Automação',
+          store: automation.stores[0] || 'shopee',
+          group_id: 'system',
+          product_url: 'https://error.log',
+          status: 'error',
+          error: errorMessage,
+        });
+        
         // Update automation with error
         await supabase
           .from('automations')
@@ -166,8 +179,22 @@ async function processSearchMode(supabase: any, automation: Automation) {
   }
 
   if (!credentials || credentials.length === 0) {
-    console.log('⚠️ Nenhuma credencial ativa encontrada');
-    return;
+    const errorMsg = 'Nenhuma credencial de afiliado ativa encontrada. Configure suas credenciais na página "Programas de Afiliado".';
+    console.log('⚠️', errorMsg);
+    
+    // Log this error
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store: automation.stores[0] || 'shopee',
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    
+    throw new Error(errorMsg);
   }
 
   console.log(`✅ Encontradas ${credentials.length} credencial(is) ativa(s)`);
@@ -186,7 +213,20 @@ async function processSearchMode(supabase: any, automation: Automation) {
         // Send deals to groups
         await sendDealsToGroups(supabase, automation, deals, cred.store);
       } else {
-        console.log(`📭 Nenhuma oferta encontrada para ${cred.store}`);
+        const msg = `Nenhuma oferta encontrada para ${cred.store} com os filtros configurados`;
+        console.log(`📭 ${msg}`);
+        
+        // Log this as info
+        await supabase.from('dispatch_logs').insert({
+          user_id: automation.user_id,
+          automation_id: automation.id,
+          automation_name: automation.name || 'Automação',
+          store: cred.store,
+          group_id: 'system',
+          product_url: 'https://info.log',
+          status: 'skipped',
+          error: msg,
+        });
       }
 
     } catch (error) {
@@ -215,6 +255,16 @@ async function searchDeals(store: string, credentials: any, automation: Automati
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      console.log('📞 Chamando função search-shopee-offers...');
+      console.log('Parâmetros:', {
+        userId: automation.user_id,
+        categories: automation.categories,
+        minPrice: automation.min_price,
+        maxPrice: automation.max_price,
+        minDiscount: automation.min_discount,
+        sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
+      });
+
       const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
         body: {
           userId: automation.user_id,
@@ -232,13 +282,18 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 
       if (error) {
         console.error('❌ Erro ao buscar ofertas Shopee:', error);
-        return [];
+        throw new Error(`Erro ao buscar ofertas Shopee: ${error.message || JSON.stringify(error)}`);
       }
+
+      console.log('✅ Resposta da API:', { 
+        success: data?.success, 
+        total: data?.offers?.length || 0 
+      });
 
       return data?.offers || [];
     } catch (error) {
       console.error('❌ Erro ao chamar API Shopee:', error);
-      return [];
+      throw error; // Re-throw to be caught by the main error handler
     }
   }
 
@@ -250,12 +305,40 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 async function sendDealsToGroups(supabase: any, automation: Automation, deals: any[], store: string) {
   console.log(`📤 Enviando ${deals.length} oferta(s) para ${automation.send_groups.length} grupo(s)...`);
 
+  // Validate send_groups
+  if (!automation.send_groups || automation.send_groups.length === 0) {
+    const errorMsg = 'Nenhum grupo de envio configurado. Configure pelo menos um grupo na automação.';
+    console.error('❌', errorMsg);
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store,
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
+  }
+
   const evolutionUrl = Deno.env.get('EVOLUTION_API_URL');
   const evolutionKey = Deno.env.get('EVOLUTION_API_KEY');
 
   if (!evolutionUrl || !evolutionKey) {
-    console.error('❌ Evolution API não configurada');
-    return;
+    const errorMsg = 'Evolution API não configurada nos secrets';
+    console.error('❌', errorMsg);
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store,
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
   }
 
   // Get user's instance
@@ -267,9 +350,22 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
     .single();
 
   if (!instance) {
-    console.log('⚠️ Nenhuma instância conectada');
-    return;
+    const errorMsg = 'WhatsApp não está conectado. Conecte seu WhatsApp para enviar ofertas.';
+    console.error('❌', errorMsg);
+    await supabase.from('dispatch_logs').insert({
+      user_id: automation.user_id,
+      automation_id: automation.id,
+      automation_name: automation.name || 'Automação',
+      store,
+      group_id: 'system',
+      product_url: 'https://error.log',
+      status: 'error',
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
   }
+
+  console.log(`✅ Instância WhatsApp encontrada: ${instance.instance_id}`);
 
   // Send each deal to each group
   for (const deal of deals) {
