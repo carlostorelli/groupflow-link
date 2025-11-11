@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -525,7 +526,12 @@ export default function OfferAutomations() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       Nenhuma loja disponível. Para usar automações, configure suas credenciais em{" "}
-                      <strong>Programas de Afiliado</strong>.
+                      <Link 
+                        to="/affiliate-programs" 
+                        className="font-semibold underline hover:text-primary"
+                      >
+                        Programas de Afiliado
+                      </Link>.
                     </AlertDescription>
                   </Alert>
                 )}
