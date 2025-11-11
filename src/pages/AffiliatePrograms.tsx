@@ -90,9 +90,9 @@ const STORE_CONFIGS: StoreConfig[] = [
     key: "shein",
     name: "Shein",
     fields: [
-      { key: "affiliateId", label: "Affiliate ID", type: "text", placeholder: "12345" },
+      { key: "affiliateLink", label: "Link de Afiliado", type: "text", placeholder: "https://onelink.shein.com/..." },
     ],
-    description: "Configure seu ID de afiliado Shein",
+    description: "Cole seu link de afiliado Shein (formato: https://onelink.shein.com/...)",
   },
   {
     key: "aliexpress",
@@ -185,6 +185,20 @@ export default function AffiliatePrograms() {
     try {
       const cred = credentials[storeKey];
       const config = STORE_CONFIGS.find((c) => c.key === storeKey);
+
+      // Validate Shein link format
+      if (storeKey === 'shein' && cred.credentials.affiliateLink) {
+        const link = cred.credentials.affiliateLink.trim();
+        if (!link.startsWith('https://onelink.shein.com/')) {
+          toast({
+            title: "Link inválido",
+            description: "O link da Shein deve começar com https://onelink.shein.com/",
+            variant: "destructive",
+          });
+          setSaving(null);
+          return;
+        }
+      }
 
       // Check if all required fields are filled
       const allFieldsFilled = config?.fields.every(
@@ -362,6 +376,11 @@ export default function AffiliatePrograms() {
                         updateCredentialField(config.key, field.key, e.target.value)
                       }
                     />
+                    {config.key === "shein" && field.key === "affiliateLink" && (
+                      <p className="text-xs text-muted-foreground">
+                        Não é necessário configurar ID. Cole seu link direto no formato https://onelink.shein.com/
+                      </p>
+                    )}
                   </div>
                 ))}
 
