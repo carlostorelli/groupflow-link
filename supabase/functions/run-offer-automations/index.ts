@@ -302,6 +302,40 @@ async function searchDeals(store: string, credentials: any, automation: Automati
   return [];
 }
 
+// Helper to download image and convert to base64
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  try {
+    console.log('📥 Baixando imagem:', url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('❌ Erro ao baixar imagem:', response.status);
+      return null;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    
+    // Check size (max 15MB)
+    if (bytes.byteLength > 15 * 1024 * 1024) {
+      console.error('❌ Imagem muito grande:', bytes.byteLength);
+      return null;
+    }
+    
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    
+    console.log('✅ Imagem convertida para base64');
+    return base64;
+  } catch (error) {
+    console.error('❌ Erro ao processar imagem:', error);
+    return null;
+  }
+}
+
 async function sendDealsToGroups(supabase: any, automation: Automation, deals: any[], store: string) {
   console.log(`📤 Enviando ${deals.length} oferta(s) para ${automation.send_groups.length} grupo(s)...`);
 
@@ -416,25 +450,47 @@ ${cta} ${affiliateUrl}
         let response;
         let responseData;
 
-        // Send image first if available
+        // Try sending with image (as base64)
         if (imageUrl) {
-          console.log('🖼️ Enviando com imagem:', imageUrl);
-          response = await fetch(
-            `${evolutionUrl}/message/sendMedia/${encodedInstanceId}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': evolutionKey,
-              },
-              body: JSON.stringify({
-                number: groupId,
-                mediatype: 'image',
-                media: imageUrl,
-                caption: formattedMessage,
-              }),
-            }
-          );
+          console.log('🖼️ Baixando e enviando imagem:', imageUrl);
+          const base64Image = await fetchImageAsBase64(imageUrl);
+          
+          if (base64Image) {
+            // Send as base64
+            response = await fetch(
+              `${evolutionUrl}/message/sendMedia/${encodedInstanceId}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': evolutionKey,
+                },
+                body: JSON.stringify({
+                  number: groupId,
+                  mediatype: 'image',
+                  media: base64Image,
+                  caption: formattedMessage,
+                }),
+              }
+            );
+          } else {
+            // Fallback to text only if image download failed
+            console.log('⚠️ Falha ao baixar imagem, enviando apenas texto');
+            response = await fetch(
+              `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': evolutionKey,
+                },
+                body: JSON.stringify({
+                  number: groupId,
+                  text: formattedMessage,
+                }),
+              }
+            );
+          }
         } else {
           console.log('📝 Enviando apenas texto');
           response = await fetch(
