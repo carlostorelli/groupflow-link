@@ -87,6 +87,7 @@ export default function OfferAutomations() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [activeStores, setActiveStores] = useState<StoreKey[]>([]);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Automation>>({
@@ -110,6 +111,7 @@ export default function OfferAutomations() {
       loadAutomations();
       loadGroups();
       checkWhatsAppConnection();
+      loadActiveStores();
     }
   }, [user]);
 
@@ -124,6 +126,23 @@ export default function OfferAutomations() {
       setWhatsappConnected(data?.status === "connected");
     } catch (error) {
       console.error("Error checking WhatsApp:", error);
+    }
+  };
+
+  const loadActiveStores = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("affiliate_credentials")
+        .select("store, is_active")
+        .eq("user_id", user?.id)
+        .eq("is_active", true);
+
+      if (error) throw error;
+      
+      const active = data?.map(cred => cred.store as StoreKey) || [];
+      setActiveStores(active);
+    } catch (error) {
+      console.error("Error loading active stores:", error);
     }
   };
 
@@ -446,7 +465,7 @@ export default function OfferAutomations() {
                 <Label>Lojas *</Label>
                 <Card>
                   <CardContent className="pt-4 grid grid-cols-2 gap-2">
-                    {STORES.map((store) => (
+                    {STORES.filter(store => activeStores.includes(store.value)).map((store) => (
                       <div key={store.value} className="flex items-center space-x-2">
                         <Checkbox
                           checked={formData.stores?.includes(store.value)}
@@ -463,6 +482,11 @@ export default function OfferAutomations() {
                         <Label className="cursor-pointer">{store.label}</Label>
                       </div>
                     ))}
+                    {activeStores.length === 0 && (
+                      <p className="text-sm text-muted-foreground col-span-2">
+                        Nenhuma loja com credenciais ativas. Configure em Programas de Afiliado.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
