@@ -192,10 +192,22 @@ export default function AffiliatePrograms() {
     setSaving(storeKey);
     try {
       const cred = credentials[storeKey];
+      if (!cred) {
+        console.error("Credential not found for store:", storeKey);
+        toast({
+          title: "Erro",
+          description: "Credencial não encontrada",
+          variant: "destructive",
+        });
+        setSaving(null);
+        return;
+      }
+
       const config = STORE_CONFIGS.find((c) => c.key === storeKey);
+      console.log("Saving credentials for:", storeKey, cred);
 
       // Validate Shein link format
-      if (storeKey === 'shein' && cred.credentials.affiliateLink) {
+      if (storeKey === 'shein' && cred.credentials?.affiliateLink) {
         const link = cred.credentials.affiliateLink.trim();
         if (!link.startsWith('https://onelink.shein.com/')) {
           toast({
@@ -210,8 +222,10 @@ export default function AffiliatePrograms() {
 
       // Check if all required fields are filled
       const allFieldsFilled = config?.fields.every(
-        (field) => cred.credentials[field.key]?.trim()
+        (field) => cred.credentials?.[field.key]?.trim()
       );
+
+      console.log("All fields filled:", allFieldsFilled);
 
       const payload = {
         user_id: user?.id,
@@ -224,21 +238,34 @@ export default function AffiliatePrograms() {
         is_active: allFieldsFilled || false,
       };
 
+      console.log("Payload:", payload);
+
       if (cred.id) {
+        console.log("Updating existing credential with ID:", cred.id);
         const { error } = await supabase
           .from("affiliate_credentials")
           .update(payload)
           .eq("id", cred.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Update error:", error);
+          throw error;
+        }
+        console.log("Update successful");
       } else {
+        console.log("Inserting new credential");
         const { data, error } = await supabase
           .from("affiliate_credentials")
           .insert(payload)
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
+
+        console.log("Insert successful, data:", data);
 
         setCredentials({
           ...credentials,
@@ -252,6 +279,7 @@ export default function AffiliatePrograms() {
       console.error("Error saving credentials:", error);
       toast({
         title: "Erro ao salvar",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
