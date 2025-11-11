@@ -42,6 +42,33 @@ serve(async (req) => {
     // Encode instance name for URL
     const encodedInstanceName = encodeURIComponent(instanceName);
     
+    // Buscar o JID do número conectado (owner)
+    const hostResponse = await fetch(
+      `${apiUrl}/instance/fetchInstances?instanceName=${encodedInstanceName}`,
+      {
+        headers: {
+          'apikey': apiKey,
+        },
+      }
+    );
+
+    if (!hostResponse.ok) {
+      throw new Error(`Erro ao buscar instância: ${hostResponse.status}`);
+    }
+
+    const instances = await hostResponse.json();
+    const myInstance = Array.isArray(instances) 
+      ? instances.find((i: any) => i.instance?.instanceName === instanceName)
+      : instances;
+    
+    const ownerJid = myInstance?.instance?.owner || null;
+    
+    if (!ownerJid) {
+      console.warn('⚠️ Não foi possível obter o JID do owner. Processando todos os grupos.');
+    } else {
+      console.log(`✅ Owner JID: ${ownerJid}`);
+    }
+    
     // Buscar grupos da instância com participantes para ter o tamanho correto
     const evolutionResponse = await fetch(
       `${apiUrl}/group/fetchAllGroups/${encodedInstanceName}?getParticipants=true`,
@@ -61,25 +88,32 @@ serve(async (req) => {
     const groupsData = await evolutionResponse.json();
     
     // Processar dados dos grupos incluindo informação de admin
-    const processedGroups = groupsData.map((group: any) => {
-      // Verificar se o usuário é admin no grupo
-      const participants = group.participants || [];
-      const ourParticipant = participants.find((p: any) => 
-        p.admin === 'admin' || p.admin === 'superadmin'
-      );
-      
-      return {
-        ...group,
-        // O tamanho real vem do array de participantes
-        size: group.participants?.length || group.size || 0,
-        // Verificar se o grupo está aberto baseado nas configurações
-        isOpen: !group.restrict && !group.announce,
-        // Verificar se o usuário é admin
-        isAdmin: ourParticipant !== undefined,
-      };
-    });
+    const processedGroups = groupsData
+      .map((group: any) => {
+        const participants = group.participants || [];
+        
+        // Se temos o ownerJid, buscar o participante específico
+        // Senão, verificar se existe algum admin (fallback)
+        const ourParticipant = ownerJid
+          ? participants.find((p: any) => 
+              p.id === ownerJid && (p.admin === 'admin' || p.admin === 'superadmin')
+            )
+          : participants.find((p: any) => 
+              p.admin === 'admin' || p.admin === 'superadmin'
+            );
+        
+        const isAdmin = ourParticipant !== undefined;
+        
+        return {
+          ...group,
+          size: participants.length || group.size || 0,
+          isOpen: !group.restrict && !group.announce,
+          isAdmin,
+        };
+      })
+      .filter((group: any) => group.isAdmin); // FILTRAR: apenas grupos onde somos admin
 
-    console.log(`✅ ${processedGroups.length} grupos processados (incluindo info de admin)`);
+    console.log(`✅ ${processedGroups.length} grupos onde o bot é ADMIN`);
 
     return new Response(
       JSON.stringify({
