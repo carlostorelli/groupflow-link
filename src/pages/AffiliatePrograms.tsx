@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
-type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress";
+type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
 
 interface AffiliateCredential {
   id?: string;
@@ -84,6 +84,15 @@ const STORE_CONFIGS: StoreConfig[] = [
       { key: "appKey", label: "App Key", type: "text", placeholder: "12345" },
     ],
     description: "Configure suas credenciais do AliExpress Affiliate Program",
+  },
+  {
+    key: "awin",
+    name: "Awin",
+    fields: [
+      { key: "awinId", label: "Awin ID", type: "text", placeholder: "Exemplo: 123457" },
+      { key: "oauth2Token", label: "Awin OAuth2 Token", type: "password", placeholder: "Exemplo: a12b3c4-d5e6-f890-123a-b4c567890f12" },
+    ],
+    description: "Configure suas credenciais do Awin",
   },
 ];
 
