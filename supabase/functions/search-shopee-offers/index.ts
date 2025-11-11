@@ -97,26 +97,26 @@ async function searchShopeeProducts(
 ) {
   const endpoint = 'https://open-api.affiliate.shopee.com.br/graphql';
   
-  // Build GraphQL query for product offers
+  // Build GraphQL query for product offers using productOfferV2
   const query = `
-    query ProductOfferQuery($keyword: String, $limit: Int, $page: Int) {
-      productOffer(
-        keyword: $keyword
-        limit: $limit
+    query ProductOfferQuery($page: Int, $limit: Int, $listType: Int, $sortType: Int) {
+      productOfferV2(
+        listType: $listType
+        sortType: $sortType
         page: $page
+        limit: $limit
       ) {
         nodes {
-          itemId
-          itemName
-          itemImage
-          itemUrl
-          shopId
-          shopName
-          price
-          originalPrice
-          discount
           commissionRate
-          sales
+          commission
+          price
+          productName
+          productLink
+          offerLink
+          productImage
+          shopName
+          categoryId
+          categoryName
         }
         pageInfo {
           page
@@ -127,8 +127,17 @@ async function searchShopeeProducts(
     }
   `;
 
+  // Map sortBy to Shopee sortType
+  // 1 = Relevance, 2 = Item Sold, 3 = Price High, 4 = Price Low, 5 = Commission High
+  let sortType = 5; // Default to highest commission
+  if (searchParams.sortBy === 'price_low') sortType = 4;
+  else if (searchParams.sortBy === 'price_high') sortType = 3;
+  else if (searchParams.sortBy === 'sales') sortType = 2;
+  else if (searchParams.sortBy === 'commission') sortType = 5;
+
   const variables = {
-    keyword: searchParams.keyword || '',
+    listType: 0, // 0 = All products
+    sortType: sortType,
     limit: searchParams.limit || 20,
     page: 1,
   };
@@ -172,12 +181,12 @@ async function searchShopeeProducts(
     throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
   }
 
-  if (!responseData.data?.productOffer?.nodes) {
+  if (!responseData.data?.productOfferV2?.nodes) {
     console.log('⚠️ Nenhum produto encontrado');
     return [];
   }
 
-  const products = responseData.data.productOffer.nodes;
+  const products = responseData.data.productOfferV2.nodes;
 
   // Filter products based on search parameters
   let filteredProducts = products;
@@ -220,15 +229,15 @@ async function searchShopeeProducts(
 
   // Transform to our format
   return filteredProducts.map((product: any) => ({
-    title: product.itemName,
+    title: product.productName,
     price: parseFloat(product.price),
-    old_price: product.originalPrice ? parseFloat(product.originalPrice) : null,
-    discount: product.discount ? parseFloat(product.discount) : null,
-    image_url: product.itemImage,
-    product_url: product.itemUrl,
-    category: searchParams.categories?.[0] || 'geral',
+    old_price: null, // productOfferV2 doesn't provide original price directly
+    discount: null, // Will be calculated from commission rate
+    image_url: product.productImage,
+    product_url: product.productLink,
+    category: product.categoryName || searchParams.categories?.[0] || 'geral',
     commission: parseFloat(product.commissionRate) * 100, // Convert to percentage
-    sales: product.sales || 0,
+    sales: 0, // Not available in productOfferV2
     shop_name: product.shopName,
   }));
 }
