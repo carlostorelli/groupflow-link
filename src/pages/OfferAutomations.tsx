@@ -91,6 +91,7 @@ export default function OfferAutomations() {
   const [activeStores, setActiveStores] = useState<StoreKey[]>([]);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [suggestingText, setSuggestingText] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Automation>>({
@@ -176,8 +177,9 @@ export default function OfferAutomations() {
     try {
       const { data, error } = await supabase
         .from("groups")
-        .select("id, name, wa_group_id")
+        .select("id, name, wa_group_id, is_admin")
         .eq("user_id", user?.id)
+        .eq("is_admin", true)
         .order("name");
 
       if (error) throw error;
@@ -405,6 +407,40 @@ export default function OfferAutomations() {
   const removeText = (index: number) => {
     const newTexts = formData.texts?.filter((_, i) => i !== index) || [];
     setFormData({ ...formData, texts: newTexts });
+  };
+
+  const suggestTexts = async () => {
+    setSuggestingText(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('suggest-offer-text', {
+        body: {
+          category: formData.categories?.[0] || null,
+          store: formData.stores?.[0] || null,
+          mode: formData.mode,
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.texts && data.texts.length > 0) {
+        setFormData({ ...formData, texts: data.texts.slice(0, 3) });
+        toast({
+          title: "Textos sugeridos com sucesso!",
+          description: "A IA gerou 3 sugestões de texto para você.",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error suggesting texts:', error);
+      toast({
+        title: "Erro ao sugerir textos",
+        description: error.message || "Não foi possível gerar sugestões de texto.",
+        variant: "destructive",
+      });
+    } finally {
+      setSuggestingText(false);
+    }
   };
 
   if (loading) {
@@ -706,11 +742,21 @@ export default function OfferAutomations() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label>Textos da Mensagem (até 3)</Label>
-                  {(formData.texts?.length || 0) < 3 && (
-                    <Button variant="outline" size="sm" onClick={addText}>
-                      <Plus className="h-3 w-3 mr-1" /> Adicionar
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={suggestTexts}
+                      disabled={suggestingText}
+                    >
+                      {suggestingText ? "Gerando..." : "✨ Sugerir com IA"}
                     </Button>
-                  )}
+                    {(formData.texts?.length || 0) < 3 && (
+                      <Button variant="outline" size="sm" onClick={addText}>
+                        <Plus className="h-3 w-3 mr-1" /> Adicionar
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {formData.texts?.map((text, index) => (
                   <div key={index} className="flex gap-2">

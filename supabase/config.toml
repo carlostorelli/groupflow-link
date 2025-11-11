@@ -114,3 +114,6 @@ verify_jwt = true
 
 [functions.redirect-link]
 verify_jwt = false
+
+[functions.suggest-offer-text]
+verify_jwt = true
