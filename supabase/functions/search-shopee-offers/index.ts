@@ -192,14 +192,21 @@ async function searchShopeeProducts(
   
   // Category synonyms to improve filtering
   const categorySynonyms: Record<string, string[]> = {
-    'pets': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet'],
-    'pet': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet'],
-    'beleza': ['beleza', 'maquiagem', 'skincare', 'perfume', 'cosmético', 'cosmetico', 'cuidado'],
-    'eletrônicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech'],
-    'eletronicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech'],
-    'moda': ['roupa', 'blusa', 'calça', 'calca', 'vestido', 'sapato', 'tenis', 'tênis'],
-    'casa': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala'],
-    'esporte': ['esporte', 'fitness', 'treino', 'academia', 'corrida']
+    'pets': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet', 'petisco'],
+    'pet': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet', 'petisco'],
+    'beleza': ['beleza', 'maquiagem', 'skincare', 'perfume', 'cosmético', 'cosmetico', 'cuidado', 'shampoo', 'creme', 'batom'],
+    'eletrônicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech', 'smartwatch', 'carregador', 'cabo', 'mouse', 'teclado'],
+    'eletronicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech', 'smartwatch', 'carregador', 'cabo', 'mouse', 'teclado'],
+    'moda': ['roupa', 'blusa', 'calça', 'calca', 'vestido', 'sapato', 'tenis', 'tênis', 'camisa', 'short', 'bolsa', 'acessório', 'acessorio'],
+    'casa e decoração': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
+    'casa e decoracao': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
+    'casa': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
+    'esportes': ['esporte', 'fitness', 'treino', 'academia', 'corrida', 'bola', 'raquete', 'bike', 'bicicleta', 'natação', 'natacao'],
+    'esporte': ['esporte', 'fitness', 'treino', 'academia', 'corrida', 'bola', 'raquete', 'bike', 'bicicleta', 'natação', 'natacao'],
+    'livros': ['livro', 'literatura', 'romance', 'ficção', 'ficcao', 'autor', 'bestseller', 'leitura', 'ebook'],
+    'brinquedos': ['brinquedo', 'boneca', 'carrinho', 'jogo', 'lego', 'puzzle', 'infantil', 'criança', 'crianca'],
+    'alimentos': ['alimento', 'comida', 'bebida', 'snack', 'lanche', 'doce', 'chocolate', 'biscoito', 'café', 'cafe', 'chá', 'cha'],
+    'automotivo': ['automotivo', 'carro', 'moto', 'peça', 'peca', 'acessório carro', 'acessorio carro', 'suporte', 'óleo', 'oleo', 'filtro']
   };
   
   // Filter by categories/keywords (if provided)
