@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, Edit, Play, FileText, AlertCircle, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 
-type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress";
+type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
 type AutomationMode = "search" | "monitor";
 type PriorityType = "discount" | "price";
 type FilterType = "light" | "heavy";
@@ -60,6 +60,7 @@ const STORES: { value: StoreKey; label: string }[] = [
   { value: "ml", label: "Mercado Livre" },
   { value: "shein", label: "Shein" },
   { value: "aliexpress", label: "AliExpress" },
+  { value: "awin", label: "Awin" },
 ];
 
 const CATEGORIES = [
@@ -120,7 +121,7 @@ export default function OfferAutomations() {
         .eq("user_id", user?.id)
         .maybeSingle();
 
-      setWhatsappConnected(data?.status === "open");
+      setWhatsappConnected(data?.status === "connected");
     } catch (error) {
       console.error("Error checking WhatsApp:", error);
     }
@@ -187,7 +188,7 @@ export default function OfferAutomations() {
         ...formData,
         user_id: user?.id,
         texts: formData.texts?.filter(t => t.trim()) || [],
-      };
+      } as any;
 
       if (editingId) {
         const { error } = await supabase

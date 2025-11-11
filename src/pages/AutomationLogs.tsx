@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Download, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
-type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress";
+type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
 type DispatchStatus = "sent" | "skipped" | "error";
 
 interface DispatchLog {
@@ -47,6 +47,7 @@ const STORES = [
   { value: "ml", label: "Mercado Livre" },
   { value: "shein", label: "Shein" },
   { value: "aliexpress", label: "AliExpress" },
+  { value: "awin", label: "Awin" },
 ];
 
 export default function AutomationLogs() {
