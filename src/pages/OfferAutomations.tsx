@@ -522,46 +522,51 @@ export default function OfferAutomations() {
               {/* Stores */}
               <div className="space-y-2">
                 <Label>Lojas *</Label>
-                {activeStores.length === 0 && (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Nenhuma loja disponível. Para usar automações, configure suas credenciais em{" "}
-                      <Link 
-                        to="/affiliate-programs" 
-                        className="font-semibold underline hover:text-primary"
-                      >
-                        Programas de Afiliado
-                      </Link>.
-                    </AlertDescription>
-                  </Alert>
+                {activeStores.length === 0 ? (
+                  <>
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhuma loja disponível. Para usar automações, configure suas credenciais em{" "}
+                        <Link 
+                          to="/affiliate-programs" 
+                          className="font-semibold underline hover:text-primary"
+                        >
+                          Programas de Afiliado
+                        </Link>.
+                      </AlertDescription>
+                    </Alert>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                          Configure suas credenciais para começar
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-4 grid grid-cols-2 gap-2">
+                      {STORES.filter(store => activeStores.includes(store.value)).map((store) => (
+                        <div key={store.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={formData.stores?.includes(store.value)}
+                            onCheckedChange={(checked) => {
+                              const current = formData.stores || [];
+                              setFormData({
+                                ...formData,
+                                stores: checked
+                                  ? [...current, store.value]
+                                  : current.filter((s) => s !== store.value),
+                              });
+                            }}
+                          />
+                          <Label className="cursor-pointer">{store.label}</Label>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
                 )}
-                <Card>
-                  <CardContent className="pt-4 grid grid-cols-2 gap-2">
-                    {STORES.filter(store => activeStores.includes(store.value)).map((store) => (
-                      <div key={store.value} className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={formData.stores?.includes(store.value)}
-                          onCheckedChange={(checked) => {
-                            const current = formData.stores || [];
-                            setFormData({
-                              ...formData,
-                              stores: checked
-                                ? [...current, store.value]
-                                : current.filter((s) => s !== store.value),
-                            });
-                          }}
-                        />
-                        <Label className="cursor-pointer">{store.label}</Label>
-                      </div>
-                    ))}
-                    {activeStores.length === 0 && (
-                      <p className="text-sm text-muted-foreground col-span-2 text-center py-4">
-                        Configure suas credenciais para começar
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
               </div>
 
               {/* Categories */}
