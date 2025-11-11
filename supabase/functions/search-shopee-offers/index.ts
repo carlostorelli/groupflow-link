@@ -190,29 +190,43 @@ async function searchShopeeProducts(
   
   console.log(`📊 Total de produtos da API: ${products.length}`);
   
-  // Try to filter by categories/keywords (if provided), but keep all if none match
+  // Category synonyms to improve filtering
+  const categorySynonyms: Record<string, string[]> = {
+    'pets': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet'],
+    'pet': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet'],
+    'beleza': ['beleza', 'maquiagem', 'skincare', 'perfume', 'cosmético', 'cosmetico', 'cuidado'],
+    'eletrônicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech'],
+    'eletronicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech'],
+    'moda': ['roupa', 'blusa', 'calça', 'calca', 'vestido', 'sapato', 'tenis', 'tênis'],
+    'casa': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala'],
+    'esporte': ['esporte', 'fitness', 'treino', 'academia', 'corrida']
+  };
+  
+  // Filter by categories/keywords (if provided)
   if (searchParams.categories && searchParams.categories.length > 0) {
-    console.log(`🔍 Tentando filtrar por categorias: ${searchParams.categories.join(', ')}`);
+    console.log(`🔍 Filtrando por categorias: ${searchParams.categories.join(', ')}`);
     
-    const categorizedProducts = products.filter((p: any) => {
+    filteredProducts = products.filter((p: any) => {
       const productName = (p.productName || '').toLowerCase();
-      // Check if product name contains any of the category keywords
+      
       return searchParams.categories!.some(category => {
-        const keywords = category.toLowerCase().split(' ');
-        return keywords.some(keyword => keyword.length > 2 && productName.includes(keyword));
+        const categoryLower = category.toLowerCase();
+        
+        // Get synonyms for this category
+        const synonyms = categorySynonyms[categoryLower] || [categoryLower];
+        
+        // Check if product name contains any synonym
+        return synonyms.some(synonym => 
+          synonym.length > 2 && productName.includes(synonym)
+        );
       });
     });
     
-    console.log(`📦 Produtos encontrados com categorias: ${categorizedProducts.length}`);
+    console.log(`✅ ${filteredProducts.length} produtos encontrados para as categorias selecionadas`);
     
-    // Only apply filter if at least some products match
-    if (categorizedProducts.length > 0) {
-      filteredProducts = categorizedProducts;
-      console.log(`✅ Usando ${filteredProducts.length} produtos filtrados por categoria`);
-    } else {
-      console.log(`⚠️ Nenhum produto encontrado com as categorias especificadas, usando todos os ${products.length} produtos`);
-      // Keep all products if category filter returns nothing
-      filteredProducts = products;
+    // If no products found after filtering, return empty array
+    if (filteredProducts.length === 0) {
+      console.log(`⚠️ Nenhum produto encontrado com as categorias especificadas`);
     }
   }
 
