@@ -613,8 +613,8 @@ export default function OfferAutomations() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="discount">Maior Desconto</SelectItem>
-                      <SelectItem value="price">Maior Preço</SelectItem>
+                      <SelectItem value="discount">Maior Desconto (%)</SelectItem>
+                      <SelectItem value="price">Maior Economia (R$)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
