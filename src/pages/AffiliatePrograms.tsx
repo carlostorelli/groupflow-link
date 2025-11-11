@@ -306,27 +306,53 @@ export default function AffiliatePrograms() {
   const handleTest = async (storeKey: StoreKey) => {
     setTesting(storeKey);
     try {
-      // Simulated test - in production, this would call an edge function
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
       const cred = credentials[storeKey];
       const config = STORE_CONFIGS.find((c) => c.key === storeKey);
       const allFieldsFilled = config?.fields.every(
         (field) => cred.credentials[field.key]?.trim()
       );
 
-      if (allFieldsFilled) {
+      if (!allFieldsFilled) {
+        throw new Error("Preencha todos os campos");
+      }
+
+      // Test Shopee credentials with edge function
+      if (storeKey === 'shopee') {
+        console.log('🧪 Testando credenciais Shopee...');
+        const { data, error } = await supabase.functions.invoke('test-shopee-credentials', {
+          body: {
+            appId: cred.credentials.appId,
+            password: cred.credentials.password,
+          },
+        });
+
+        if (error) {
+          console.error('❌ Erro ao testar Shopee:', error);
+          throw new Error(error.message || 'Erro ao conectar com a API da Shopee');
+        }
+
+        if (!data?.success) {
+          console.error('❌ Credenciais Shopee inválidas:', data?.error);
+          throw new Error(data?.error || 'Credenciais inválidas');
+        }
+
+        console.log('✅ Credenciais Shopee válidas!');
         toast({
           title: "Conexão testada com sucesso!",
           description: `As credenciais do ${config?.name} estão válidas.`,
         });
       } else {
-        throw new Error("Preencha todos os campos");
+        // For other stores, show a generic success message
+        toast({
+          title: "Credenciais salvas",
+          description: `As credenciais do ${config?.name} foram salvas. A validação será feita no primeiro uso.`,
+        });
       }
     } catch (error) {
+      console.error('💥 Erro no teste:', error);
       toast({
         title: "Erro no teste",
-        description: "Verifique se as credenciais estão corretas.",
+        description: error instanceof Error ? error.message : "Verifique se as credenciais estão corretas.",
         variant: "destructive",
       });
     } finally {
