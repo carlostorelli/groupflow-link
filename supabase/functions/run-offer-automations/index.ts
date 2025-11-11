@@ -396,7 +396,7 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       }
       
       const messagesResponse = await fetch(
-        `${evolutionUrl}/message/findMessages/${encodedInstanceId}`,
+        `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
         {
           method: 'POST',
           headers: {
