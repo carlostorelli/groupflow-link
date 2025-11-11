@@ -189,11 +189,27 @@ export default function AffiliatePrograms() {
   };
 
   const handleSave = async (storeKey: StoreKey) => {
+    console.log("🚀 handleSave iniciado para:", storeKey);
+    console.log("👤 User:", user);
+    console.log("📋 Credentials state:", credentials);
+    
     setSaving(storeKey);
+    
     try {
+      if (!user?.id) {
+        console.error("❌ User ID não encontrado");
+        toast({
+          title: "Erro de autenticação",
+          description: "Usuário não autenticado",
+          variant: "destructive",
+        });
+        setSaving(null);
+        return;
+      }
+
       const cred = credentials[storeKey];
       if (!cred) {
-        console.error("Credential not found for store:", storeKey);
+        console.error("❌ Credential not found for store:", storeKey);
         toast({
           title: "Erro",
           description: "Credencial não encontrada",
@@ -204,7 +220,7 @@ export default function AffiliatePrograms() {
       }
 
       const config = STORE_CONFIGS.find((c) => c.key === storeKey);
-      console.log("Saving credentials for:", storeKey, cred);
+      console.log("💾 Saving credentials for:", storeKey, "Credentials:", cred);
 
       // Validate Shein link format
       if (storeKey === 'shein' && cred.credentials?.affiliateLink) {
@@ -469,7 +485,10 @@ export default function AffiliatePrograms() {
 
                 <div className="flex gap-2 pt-2">
                   <Button
-                    onClick={() => handleSave(config.key)}
+                    onClick={() => {
+                      console.log("🔘 Botão Salvar clicado para:", config.key);
+                      handleSave(config.key);
+                    }}
                     disabled={saving === config.key}
                     className="flex-1"
                   >
