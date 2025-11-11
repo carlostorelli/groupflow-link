@@ -190,23 +190,23 @@ async function searchShopeeProducts(
   
   console.log(`📊 Total de produtos da API: ${products.length}`);
   
-  // Category synonyms to improve filtering
+  // Category synonyms to improve filtering (using word boundaries)
   const categorySynonyms: Record<string, string[]> = {
-    'pets': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet', 'petisco'],
-    'pet': ['pet', 'cachorro', 'gato', 'cao', 'animal', 'ração', 'racao', 'coleira', 'brinquedo pet', 'petisco'],
-    'beleza': ['beleza', 'maquiagem', 'skincare', 'perfume', 'cosmético', 'cosmetico', 'cuidado', 'shampoo', 'creme', 'batom'],
-    'eletrônicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech', 'smartwatch', 'carregador', 'cabo', 'mouse', 'teclado'],
-    'eletronicos': ['eletronico', 'eletrônico', 'celular', 'fone', 'tablet', 'notebook', 'tech', 'smartwatch', 'carregador', 'cabo', 'mouse', 'teclado'],
-    'moda': ['roupa', 'blusa', 'calça', 'calca', 'vestido', 'sapato', 'tenis', 'tênis', 'camisa', 'short', 'bolsa', 'acessório', 'acessorio'],
-    'casa e decoração': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
-    'casa e decoracao': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
-    'casa': ['casa', 'decoração', 'decoracao', 'cozinha', 'quarto', 'sala', 'organizador', 'luminária', 'luminaria', 'quadro', 'tapete'],
-    'esportes': ['esporte', 'fitness', 'treino', 'academia', 'corrida', 'bola', 'raquete', 'bike', 'bicicleta', 'natação', 'natacao'],
-    'esporte': ['esporte', 'fitness', 'treino', 'academia', 'corrida', 'bola', 'raquete', 'bike', 'bicicleta', 'natação', 'natacao'],
-    'livros': ['livro', 'literatura', 'romance', 'ficção', 'ficcao', 'autor', 'bestseller', 'leitura', 'ebook'],
-    'brinquedos': ['brinquedo', 'boneca', 'carrinho', 'jogo', 'lego', 'puzzle', 'infantil', 'criança', 'crianca'],
-    'alimentos': ['alimento', 'comida', 'bebida', 'snack', 'lanche', 'doce', 'chocolate', 'biscoito', 'café', 'cafe', 'chá', 'cha'],
-    'automotivo': ['automotivo', 'carro', 'moto', 'peça', 'peca', 'acessório carro', 'acessorio carro', 'suporte', 'óleo', 'oleo', 'filtro']
+    'pets': ['\\bpet\\b', '\\bcachorro\\b', '\\bgato\\b', '\\bcao\\b', '\\bcão\\b', '\\banimal\\b', '\\bracao\\b', '\\bração\\b', '\\bcoleira\\b', '\\bpetisco\\b', '\\banimais\\b'],
+    'pet': ['\\bpet\\b', '\\bcachorro\\b', '\\bgato\\b', '\\bcao\\b', '\\bcão\\b', '\\banimal\\b', '\\bracao\\b', '\\bração\\b', '\\bcoleira\\b', '\\bpetisco\\b', '\\banimais\\b'],
+    'beleza': ['\\bbeleza\\b', '\\bmaquiagem\\b', '\\bskincare\\b', '\\bperfume\\b', '\\bcosmetico\\b', '\\bcosmético\\b', '\\bcuidado\\b', '\\bshampoo\\b', '\\bcreme\\b', '\\bbatom\\b'],
+    'eletrônicos': ['\\beletronico\\b', '\\beletrônico\\b', '\\bcelular\\b', '\\bfone\\b', '\\btablet\\b', '\\bnotebook\\b', '\\btech\\b', '\\bsmartwatch\\b', '\\bcarregador\\b', '\\bcabo\\b', '\\bmouse\\b', '\\bteclado\\b'],
+    'eletronicos': ['\\beletronico\\b', '\\beletrônico\\b', '\\bcelular\\b', '\\bfone\\b', '\\btablet\\b', '\\bnotebook\\b', '\\btech\\b', '\\bsmartwatch\\b', '\\bcarregador\\b', '\\bcabo\\b', '\\bmouse\\b', '\\bteclado\\b'],
+    'moda': ['\\broupa\\b', '\\bblusa\\b', '\\bcalca\\b', '\\bcalça\\b', '\\bvestido\\b', '\\bsapato\\b', '\\btenis\\b', '\\btênis\\b', '\\bcamisa\\b', '\\bshort\\b', '\\bbolsa\\b', '\\bacessorio\\b', '\\bacessório\\b'],
+    'casa e decoração': ['\\bcasa\\b', '\\bdecoracao\\b', '\\bdecoração\\b', '\\bcozinha\\b', '\\bquarto\\b', '\\bsala\\b', '\\borganizador\\b', '\\bluminaria\\b', '\\bluminária\\b', '\\bquadro\\b', '\\btapete\\b'],
+    'casa e decoracao': ['\\bcasa\\b', '\\bdecoracao\\b', '\\bdecoração\\b', '\\bcozinha\\b', '\\bquarto\\b', '\\bsala\\b', '\\borganizador\\b', '\\bluminaria\\b', '\\bluminária\\b', '\\bquadro\\b', '\\btapete\\b'],
+    'casa': ['\\bcasa\\b', '\\bdecoracao\\b', '\\bdecoração\\b', '\\bcozinha\\b', '\\bquarto\\b', '\\bsala\\b', '\\borganizador\\b', '\\bluminaria\\b', '\\bluminária\\b', '\\bquadro\\b', '\\btapete\\b'],
+    'esportes': ['\\besporte\\b', '\\bfitness\\b', '\\btreino\\b', '\\bacademia\\b', '\\bcorrida\\b', '\\bbola\\b', '\\braquete\\b', '\\bbike\\b', '\\bbicicleta\\b', '\\bnatacao\\b', '\\bnatação\\b'],
+    'esporte': ['\\besporte\\b', '\\bfitness\\b', '\\btreino\\b', '\\bacademia\\b', '\\bcorrida\\b', '\\bbola\\b', '\\braquete\\b', '\\bbike\\b', '\\bbicicleta\\b', '\\bnatacao\\b', '\\bnatação\\b'],
+    'livros': ['\\blivro\\b', '\\bliteratura\\b', '\\bromance\\b', '\\bficcao\\b', '\\bficção\\b', '\\bautor\\b', '\\bbestseller\\b', '\\bleitura\\b', '\\bebook\\b', '\\be-book\\b'],
+    'brinquedos': ['\\bbrinquedo\\b', '\\bboneca\\b', '\\bcarrinho\\b', '\\bjogo\\b', '\\blego\\b', '\\bpuzzle\\b', '\\binfantil\\b', '\\bcrianca\\b', '\\bcriança\\b'],
+    'alimentos': ['\\balimento\\b', '\\bcomida\\b', '\\bbebida\\b', '\\bsnack\\b', '\\blanche\\b', '\\bdoce\\b', '\\bchocolate\\b', '\\bbiscoito\\b', '\\bcafe\\b', '\\bcafé\\b', '\\bcha\\b', '\\bchá\\b'],
+    'automotivo': ['\\bautomotivo\\b', '\\bcarro\\b', '\\bmoto\\b', '\\bpeca\\b', '\\bpeça\\b', '\\bacessorio carro\\b', '\\bacessório carro\\b', '\\bsuporte\\b', '\\boleo\\b', '\\bóleo\\b', '\\bfiltro\\b']
   };
   
   // Filter by categories/keywords (if provided)
@@ -220,16 +220,29 @@ async function searchShopeeProducts(
         const categoryLower = category.toLowerCase();
         
         // Get synonyms for this category
-        const synonyms = categorySynonyms[categoryLower] || [categoryLower];
+        const synonymPatterns = categorySynonyms[categoryLower] || [categoryLower];
         
-        // Check if product name contains any synonym
-        return synonyms.some(synonym => 
-          synonym.length > 2 && productName.includes(synonym)
-        );
+        // Check if product name contains any synonym as whole word
+        return synonymPatterns.some(pattern => {
+          try {
+            const regex = new RegExp(pattern, 'i');
+            return regex.test(productName);
+          } catch (e) {
+            // Fallback to simple includes if regex fails
+            return productName.includes(pattern);
+          }
+        });
       });
     });
     
     console.log(`✅ ${filteredProducts.length} produtos encontrados para as categorias selecionadas`);
+    
+    // Log some product names for debugging
+    if (filteredProducts.length > 0 && filteredProducts.length < 5) {
+      filteredProducts.forEach((p: any) => {
+        console.log(`   - ${p.productName}`);
+      });
+    }
     
     // If no products found after filtering, return empty array
     if (filteredProducts.length === 0) {
