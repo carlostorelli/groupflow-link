@@ -380,33 +380,36 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       // Fetch recent messages from the group
       const encodedInstanceId = encodeURIComponent(instance.instance_id);
       
-      // Get instance connection state to get owner JID
-      const connectionStateResponse = await fetch(
-        `${evolutionUrl}/instance/connectionState/${encodedInstanceId}`,
-        {
-          headers: { 'apikey': evolutionKey },
-        }
-      );
-
+      // Try to get owner JID from instance info
       let ownerJid = null;
-      if (connectionStateResponse.ok) {
-        const connectionState = await connectionStateResponse.json();
-        console.log(`🔌 Estado da conexão:`, JSON.stringify(connectionState, null, 2));
-        
-        // Try to get owner JID from different possible paths
-        ownerJid = connectionState?.instance?.owner || 
-                   connectionState?.owner || 
-                   connectionState?.instance?.wuid ||
-                   connectionState?.wuid;
-        
-        if (ownerJid) {
-          console.log(`👤 Owner JID encontrado: ${ownerJid}`);
-        } else {
-          console.error(`❌ Owner JID não encontrado na resposta da API`);
-          console.error(`❌ Resposta completa:`, JSON.stringify(connectionState, null, 2));
+      try {
+        const instanceInfoResponse = await fetch(
+          `${evolutionUrl}/instance/fetchInstances?instanceName=${encodedInstanceId}`,
+          {
+            headers: { 'apikey': evolutionKey },
+          }
+        );
+
+        if (instanceInfoResponse.ok) {
+          const instances = await instanceInfoResponse.json();
+          console.log(`📱 Instâncias encontradas:`, JSON.stringify(instances, null, 2));
+          
+          // Try to extract owner from different possible structures
+          const instanceData = Array.isArray(instances) ? instances[0] : instances;
+          ownerJid = instanceData?.owner || 
+                     instanceData?.instance?.owner || 
+                     instanceData?.wuid ||
+                     instanceData?.instance?.wuid;
+          
+          if (ownerJid) {
+            console.log(`👤 Owner JID encontrado: ${ownerJid}`);
+          } else {
+            console.warn(`⚠️ Owner JID não encontrado. Processando todas as mensagens (sem filtro de owner).`);
+          }
         }
-      } else {
-        console.error(`❌ Erro ao buscar estado da conexão: ${connectionStateResponse.status}`);
+      } catch (e) {
+        const error = e as Error;
+        console.warn(`⚠️ Erro ao buscar owner JID: ${error.message}. Processando todas as mensagens.`);
       }
       
       // Validate group JID format
@@ -462,13 +465,28 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 
       // Process messages
       if (messages && Array.isArray(messages)) {
+        console.log(`📝 Processando ${messages.length} mensagens...`);
+        
+        // Log first 3 messages for debugging
+        if (messages.length > 0) {
+          console.log(`📋 Primeiras 3 mensagens (para debug):`, 
+            JSON.stringify(messages.slice(0, 3).map(m => ({
+              from: m.key?.participant || m.key?.remoteJid,
+              fromMe: m.key?.fromMe,
+              text: m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '[sem texto]'
+            })), null, 2)
+          );
+        }
+        
         for (const msg of messages) {
           try {
             // Ignore messages from self
             if (ownerJid && msg.key?.participant === ownerJid) {
+              console.log(`⏭️ Ignorando mensagem do owner: ${ownerJid}`);
               continue;
             }
             if (ownerJid && msg.key?.fromMe) {
+              console.log(`⏭️ Ignorando mensagem "fromMe"`);
               continue;
             }
 
@@ -477,12 +495,20 @@ async function processMonitorMode(supabase: any, automation: Automation) {
                         msg.message?.extendedTextMessage?.text || 
                         msg.message?.imageMessage?.caption || '';
             
-            if (!text) continue;
+            if (!text) {
+              console.log(`⏭️ Mensagem sem texto`);
+              continue;
+            }
+            
+            console.log(`📝 Texto da mensagem: ${text.substring(0, 100)}...`);
 
             // Extract product links (Shopee, Amazon, Magalu, ML, etc.)
             const productLinks = extractProductLinks(text);
             
-            if (productLinks.length === 0) continue;
+            if (productLinks.length === 0) {
+              console.log(`⏭️ Nenhum link de produto encontrado nesta mensagem`);
+              continue;
+            }
 
             // Take only the first link
             const productLink = productLinks[0];
