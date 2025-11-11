@@ -538,10 +538,8 @@ async function sendDealsToGroups(supabase: any, automation: Automation, deals: a
     ? automation.ctas[Math.floor(Math.random() * automation.ctas.length)]
     : '🛒 Compre aqui:';
 
-  // Format message following the user's pattern
-  const formattedMessage = `NADA MELHOR QUE COMPRAR E ECONOMIZAR 🤑🛍️
-
-> CORRE QUE VAI ESGOTAR
+  // Format message using the custom text template
+  const formattedMessage = `${messageTemplate}
 
 📦 ${deal.title}
 
