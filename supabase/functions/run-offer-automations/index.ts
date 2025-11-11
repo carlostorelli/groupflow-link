@@ -44,18 +44,41 @@ serve(async (req) => {
     const now = new Date();
     const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
 
-    // Get active automations that need to run
-    const { data: automations, error: autoError } = await supabase
-      .from('automations')
-      .select('*')
-      .eq('status', 'active')
-      .lte('start_time', currentTime)
-      .gte('end_time', currentTime)
-      .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`);
+    // Check if specific automation ID is provided (manual execution)
+    const { automationId } = await req.json().catch(() => ({}));
 
-    if (autoError) {
-      console.error('❌ Erro ao buscar automações:', autoError);
-      throw autoError;
+    let automations: Automation[];
+
+    if (automationId) {
+      // Manual execution - run specific automation
+      console.log(`🎯 Execução manual para automação: ${automationId}`);
+      const { data, error } = await supabase
+        .from('automations')
+        .select('*')
+        .eq('id', automationId)
+        .single();
+
+      if (error || !data) {
+        throw new Error(`Automação ${automationId} não encontrada`);
+      }
+
+      automations = [data];
+    } else {
+      // Automatic execution - get active automations that need to run
+      const { data, error: autoError } = await supabase
+        .from('automations')
+        .select('*')
+        .eq('status', 'active')
+        .lte('start_time', currentTime)
+        .gte('end_time', currentTime)
+        .or(`next_run_at.is.null,next_run_at.lte.${now.toISOString()}`);
+
+      if (autoError) {
+        console.error('❌ Erro ao buscar automações:', autoError);
+        throw autoError;
+      }
+
+      automations = data || [];
     }
 
     if (!automations || automations.length === 0) {

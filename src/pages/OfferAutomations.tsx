@@ -313,42 +313,29 @@ export default function OfferAutomations() {
     setRunningId(automation.id);
 
     try {
-      // Update last_run_at and next_run_at
-      const now = new Date();
-      const nextRun = new Date(now.getTime() + automation.interval_minutes * 60000);
+      console.log(`▶️ Executando automação manualmente: ${automation.id}`);
 
-      const { error } = await supabase
-        .from("automations")
-        .update({
-          last_run_at: now.toISOString(),
-          next_run_at: nextRun.toISOString(),
-        })
-        .eq("id", automation.id);
+      // Call the edge function to run the automation
+      const { data, error } = await supabase.functions.invoke('run-offer-automations', {
+        body: {
+          automationId: automation.id,
+        },
+      });
 
       if (error) throw error;
 
-      // Create a dispatch log entry for manual execution
-      await supabase.from("dispatch_logs").insert({
-        user_id: user?.id,
-        automation_id: automation.id,
-        automation_name: automation.name,
-        store: automation.stores[0] || "shopee",
-        group_id: automation.send_groups[0] || "",
-        product_url: "manual-execution",
-        status: "sent",
-      });
-
       toast({
         title: "Automação executada!",
-        description: `A automação "${automation.name}" foi executada manualmente.`,
+        description: `A automação "${automation.name}" foi executada com sucesso.`,
       });
 
+      // Reload automations to show updated run times
       loadAutomations();
     } catch (error) {
       console.error("Error running automation:", error);
       toast({
         title: "Erro ao executar",
-        description: "Não foi possível executar a automação.",
+        description: error instanceof Error ? error.message : "Não foi possível executar a automação.",
         variant: "destructive",
       });
     } finally {
