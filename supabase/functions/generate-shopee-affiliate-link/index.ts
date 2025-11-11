@@ -54,17 +54,77 @@ serve(async (req) => {
       );
     }
 
-    // Generate timestamp for signature
-    const timestamp = Math.floor(Date.now() / 1000);
-    
     // Generate affiliate link using Shopee Affiliate API
-    // For now, we'll append the App ID as a query parameter
-    // In production, this should use the Shopee Open API to generate proper affiliate links
+    console.log('🔗 Gerando short link da Shopee...');
     
-    const url = new URL(productUrl);
-    url.searchParams.set('af_siteid', appId);
-    url.searchParams.set('pid', appId);
-    const affiliateUrl = url.toString();
+    const graphqlQuery = `
+      mutation GenerateShortLink($originalUrl: String!, $subIds: [String]) {
+        generateShortLink(originalUrl: $originalUrl, subIds: $subIds) {
+          shortLink
+          error
+        }
+      }
+    `;
+
+    const variables = {
+      originalUrl: productUrl,
+      subIds: [userId], // Track by user ID
+    };
+
+    const payload = JSON.stringify({
+      query: graphqlQuery,
+      operationName: 'GenerateShortLink',
+      variables,
+    });
+
+    // Generate authentication signature
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signatureString = `${appId}${timestamp}${payload}${password}`;
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(signatureString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const authHeader = `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
+
+    const response = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: payload,
+    });
+
+    const responseData = await response.json();
+    console.log('📥 Resposta API Shopee:', responseData);
+
+    if (responseData.errors) {
+      console.error('❌ Erro ao gerar link:', responseData.errors);
+      throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
+    }
+
+    const shortLink = responseData.data?.generateShortLink?.shortLink;
+    
+    if (!shortLink) {
+      console.error('❌ Short link não retornado');
+      // Fallback to original URL with appId parameter
+      const url = new URL(productUrl);
+      url.searchParams.set('af_siteid', appId);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          affiliateUrl: url.toString(),
+          originalUrl: productUrl,
+          warning: 'Link de afiliado gerado localmente (API indisponível)'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const affiliateUrl = shortLink;
 
     console.log('✅ Link de afiliado gerado:', affiliateUrl);
 

@@ -208,28 +208,43 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 async function searchDeals(store: string, credentials: any, automation: Automation) {
   console.log(`🔎 Buscando ofertas em ${store}...`);
 
-  // Mock deals for now - in production, this would call the actual store API
-  const mockDeals = [
-    {
-      title: 'Produto Exemplo 1',
-      price: 49.90,
-      old_price: 99.90,
-      discount: 50,
-      image_url: 'https://via.placeholder.com/300',
-      product_url: 'https://shopee.com.br/product/123',
-      category: automation.categories[0] || 'geral',
-    },
-  ];
+  if (store === 'shopee') {
+    // Use real Shopee API
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Filter deals based on automation criteria
-  const filteredDeals = mockDeals.filter(deal => {
-    if (automation.min_discount && deal.discount < automation.min_discount) return false;
-    if (automation.min_price && deal.price < automation.min_price) return false;
-    if (automation.max_price && deal.price > automation.max_price) return false;
-    return true;
-  });
+      const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
+        body: {
+          userId: automation.user_id,
+          searchParams: {
+            keyword: automation.categories[0] || '',
+            categories: automation.categories,
+            minPrice: automation.min_price || undefined,
+            maxPrice: automation.max_price || undefined,
+            minDiscount: automation.min_discount || undefined,
+            sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
+            limit: 20,
+          },
+        },
+      });
 
-  return filteredDeals;
+      if (error) {
+        console.error('❌ Erro ao buscar ofertas Shopee:', error);
+        return [];
+      }
+
+      return data?.offers || [];
+    } catch (error) {
+      console.error('❌ Erro ao chamar API Shopee:', error);
+      return [];
+    }
+  }
+
+  // For other stores, return empty for now
+  console.log(`⚠️ Loja ${store} ainda não implementada`);
+  return [];
 }
 
 async function sendDealsToGroups(supabase: any, automation: Automation, deals: any[], store: string) {
