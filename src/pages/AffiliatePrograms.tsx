@@ -151,15 +151,19 @@ export default function AffiliatePrograms() {
 
       // Fill in saved credentials
       data?.forEach((cred) => {
-        const credentials = cred.credentials as Record<string, any>;
+        const credentialsData = cred.credentials as Record<string, any>;
+        
+        // Extract selected_brands from credentials JSONB if it exists
+        const { selected_brands, ...restCredentials } = credentialsData;
+        
         credsMap[cred.store as StoreKey] = {
           id: cred.id,
           store: cred.store as StoreKey,
-          credentials: credentials,
+          credentials: restCredentials,
           auto_generate: cred.auto_generate,
           is_active: cred.is_active,
-          selected_brands: cred.store === 'awin' && Array.isArray(credentials?.selected_brands)
-            ? credentials.selected_brands
+          selected_brands: cred.store === 'awin' && Array.isArray(selected_brands)
+            ? selected_brands
             : undefined,
         };
       });
