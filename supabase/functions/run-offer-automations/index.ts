@@ -410,6 +410,9 @@ ${cta} ${affiliateUrl}
       try {
         console.log(`📨 Enviando para grupo ${groupId}...`);
 
+        // Encode instance name for URL (important for special characters)
+        const encodedInstanceId = encodeURIComponent(instance.instance_id);
+
         let response;
         let responseData;
 
@@ -417,7 +420,7 @@ ${cta} ${affiliateUrl}
         if (imageUrl) {
           console.log('🖼️ Enviando com imagem:', imageUrl);
           response = await fetch(
-            `${evolutionUrl}/message/sendMedia/${instance.instance_id}`,
+            `${evolutionUrl}/message/sendMedia/${encodedInstanceId}`,
             {
               method: 'POST',
               headers: {
@@ -435,7 +438,7 @@ ${cta} ${affiliateUrl}
         } else {
           console.log('📝 Enviando apenas texto');
           response = await fetch(
-            `${evolutionUrl}/message/sendText/${instance.instance_id}`,
+            `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
             {
               method: 'POST',
               headers: {
