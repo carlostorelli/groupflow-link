@@ -301,35 +301,49 @@ export default function OfferAutomations() {
   };
 
   const handleRunNow = async (automation: Automation) => {
-    if (!whatsappConnected) {
-      toast({
-        title: "WhatsApp desconectado",
-        description: "Conecte o WhatsApp para executar automações.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setRunningId(automation.id);
 
     try {
-      console.log(`▶️ Executando automação manualmente: ${automation.id}`);
+      console.log(`🔍 Diagnosticando automação: ${automation.id}`);
 
-      // Call the edge function to run the automation
-      const { data, error } = await supabase.functions.invoke('run-offer-automations', {
+      // First, run diagnostic
+      const { data: diagData, error: diagError } = await supabase.functions.invoke('diagnose-automation', {
         body: {
           automationId: automation.id,
         },
       });
 
-      if (error) throw error;
+      if (diagError) throw diagError;
 
-      toast({
-        title: "Automação executada!",
-        description: `A automação "${automation.name}" foi executada com sucesso.`,
-      });
+      const { code, message, steps } = diagData;
 
-      // Reload automations to show updated run times
+      // Show diagnostic results
+      const stepsText = steps.map((s: any) => 
+        `${s.ok ? '✅' : '❌'} ${s.step}: ${s.detail}`
+      ).join('\n');
+
+      if (code === 'SENT_OK' || code === 'ENVIO_PRONTO') {
+        // If diagnostic passed, run the automation
+        const { error: runError } = await supabase.functions.invoke('run-offer-automations', {
+          body: {
+            automationId: automation.id,
+          },
+        });
+
+        if (runError) throw runError;
+
+        toast({
+          title: "✅ Automação executada!",
+          description: `Diagnóstico: OK\n\n${stepsText}`,
+        });
+      } else {
+        toast({
+          title: `⚠️ ${message}`,
+          description: `Código: ${code}\n\n${stepsText}`,
+          variant: "destructive",
+        });
+      }
+
       loadAutomations();
     } catch (error) {
       console.error("Error running automation:", error);

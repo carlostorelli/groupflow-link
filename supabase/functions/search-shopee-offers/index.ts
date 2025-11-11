@@ -224,21 +224,26 @@ async function searchShopeeProducts(
     });
   }
 
-  // Transform to our format
-  // Note: productOfferV2 has limited fields compared to other endpoints
-  // We'll extract the product image from the productLink later if needed
-  return filteredProducts.map((product: any) => ({
-    title: product.productName,
-    price: parseFloat(product.price),
-    old_price: null, // Not available in productOfferV2
-    discount: product.commission ? Math.round(parseFloat(product.commission) * 100) : null,
-    image_url: extractImageFromUrl(product.productLink) || 'https://via.placeholder.com/400x400?text=Produto',
-    product_url: product.productLink,
-    category: searchParams.categories?.[0] || 'geral',
-    commission: parseFloat(product.commissionRate) * 100, // Convert to percentage
-    sales: 0, // Not available in productOfferV2
-    shop_name: 'Shopee',
-  }));
+  // Transform to our format with robust fallbacks
+  return filteredProducts.map((product: any) => {
+    const price = parseFloat(product.price) || 0;
+    const commission = parseFloat(product.commission) || 0;
+    const commissionRate = parseFloat(product.commissionRate) || 0;
+    
+    return {
+      id: product.offerLink || product.productLink || String(Date.now()),
+      title: product.productName || 'Produto',
+      price,
+      old_price: null,
+      discount: commission > 0 ? Math.round(commission) : null,
+      image_url: extractImageFromUrl(product.productLink),
+      product_url: product.productLink || product.offerLink || '',
+      category: searchParams.categories?.[0] || 'geral',
+      commission: commissionRate * 100,
+      sales: 0,
+      shop_name: 'Shopee',
+    };
+  });
 }
 
 // Helper function to extract product ID from Shopee URL and build image URL

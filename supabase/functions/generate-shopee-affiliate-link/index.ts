@@ -58,18 +58,19 @@ serve(async (req) => {
     console.log('🔗 Gerando short link da Shopee...');
     
     const graphqlQuery = `
-      mutation GenerateShortLink($originalUrl: String!, $subIds: [String]) {
-        generateShortLink(originalUrl: $originalUrl, subIds: $subIds) {
-          shortLink
-          error
+      mutation GenerateShortLink {
+        generateShortLink(input: {
+          originalUrl: "${productUrl}"
+          subId: "${userId}"
+        }) {
+          data {
+            shortLink
+          }
         }
       }
     `;
 
-    const variables = {
-      originalUrl: productUrl,
-      subIds: [userId], // Track by user ID
-    };
+    const variables = {};
 
     const payload = JSON.stringify({
       query: graphqlQuery,
@@ -106,7 +107,7 @@ serve(async (req) => {
       throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
     }
 
-    const shortLink = responseData.data?.generateShortLink?.shortLink;
+    const shortLink = responseData.data?.generateShortLink?.data?.shortLink;
     
     if (!shortLink) {
       console.error('❌ Short link não retornado');
