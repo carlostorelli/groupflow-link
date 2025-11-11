@@ -142,6 +142,7 @@ export default function OfferAutomations() {
       if (error) throw error;
       
       const active = data?.map(cred => cred.store as StoreKey) || [];
+      console.log("Active stores loaded:", active);
       setActiveStores(active);
     } catch (error) {
       console.error("Error loading active stores:", error);
