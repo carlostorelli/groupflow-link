@@ -380,32 +380,33 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       // Fetch recent messages from the group
       const encodedInstanceId = encodeURIComponent(instance.instance_id);
       
-      // Get instance owner JID to ignore own messages
-      const fetchInstancesResponse = await fetch(
-        `${evolutionUrl}/instance/fetchInstances`,
+      // Get instance connection state to get owner JID
+      const connectionStateResponse = await fetch(
+        `${evolutionUrl}/instance/connectionState/${encodedInstanceId}`,
         {
           headers: { 'apikey': evolutionKey },
         }
       );
 
       let ownerJid = null;
-      if (fetchInstancesResponse.ok) {
-        const instances = await fetchInstancesResponse.json();
-        console.log(`📱 Total de instâncias encontradas: ${instances?.length || 0}`);
+      if (connectionStateResponse.ok) {
+        const connectionState = await connectionStateResponse.json();
+        console.log(`🔌 Estado da conexão:`, JSON.stringify(connectionState, null, 2));
         
-        // Find the specific instance
-        const instanceData = instances?.find((inst: any) => 
-          inst?.instance?.instanceName === instance.instance_id
-        );
+        // Try to get owner JID from different possible paths
+        ownerJid = connectionState?.instance?.owner || 
+                   connectionState?.owner || 
+                   connectionState?.instance?.wuid ||
+                   connectionState?.wuid;
         
-        if (instanceData?.instance?.owner) {
-          ownerJid = instanceData.instance.owner;
+        if (ownerJid) {
           console.log(`👤 Owner JID encontrado: ${ownerJid}`);
         } else {
-          console.warn(`⚠️ Owner JID não encontrado para instância ${instance.instance_id}`);
+          console.error(`❌ Owner JID não encontrado na resposta da API`);
+          console.error(`❌ Resposta completa:`, JSON.stringify(connectionState, null, 2));
         }
       } else {
-        console.error(`❌ Erro ao buscar instâncias: ${fetchInstancesResponse.status}`);
+        console.error(`❌ Erro ao buscar estado da conexão: ${connectionStateResponse.status}`);
       }
       
       // Validate group JID format
@@ -426,22 +427,14 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 
       console.log(`🔍 Buscando mensagens com JID validado: ${groupId}`);
 
+      // Try the simpler fetchMessages endpoint first
       const messagesResponse = await fetch(
-        `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
+        `${evolutionUrl}/chat/fetchMessages/${encodedInstanceId}?remoteJid=${encodeURIComponent(groupId)}&limit=100`,
         {
-          method: 'POST',
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             'apikey': evolutionKey,
           },
-          body: JSON.stringify({
-            where: {
-              key: {
-                remoteJid: groupId
-              }
-            },
-            limit: 100
-          }),
         }
       );
 
@@ -449,13 +442,23 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 
       if (!messagesResponse.ok) {
         const errorText = await messagesResponse.text();
-        console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}: ${errorText}`);
+        console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}: ${messagesResponse.status} - ${errorText}`);
         continue;
       }
 
       const messagesData = await messagesResponse.json();
+      console.log(`📦 Tipo de resposta:`, typeof messagesData, Array.isArray(messagesData) ? 'Array' : 'Object');
+      console.log(`📦 Estrutura da resposta:`, JSON.stringify(messagesData).substring(0, 500));
+      
       const messages = Array.isArray(messagesData) ? messagesData : (messagesData.messages || []);
       console.log(`📨 Encontradas ${messages.length || 0} mensagens no grupo`);
+      
+      if (messages.length === 0) {
+        console.warn(`⚠️ Nenhuma mensagem encontrada no grupo ${groupId}. Isso pode significar:`);
+        console.warn(`   - O grupo está vazio ou sem mensagens recentes`);
+        console.warn(`   - O JID do grupo está incorreto`);
+        console.warn(`   - A instância não tem permissão para ler mensagens deste grupo`);
+      }
 
       // Process messages
       if (messages && Array.isArray(messages)) {
