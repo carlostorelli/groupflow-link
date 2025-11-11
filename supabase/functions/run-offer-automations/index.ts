@@ -381,20 +381,51 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       const encodedInstanceId = encodeURIComponent(instance.instance_id);
       
       // Get instance owner JID to ignore own messages
-      const connectionStateResponse = await fetch(
-        `${evolutionUrl}/instance/connectionState/${encodedInstanceId}`,
+      const fetchInstancesResponse = await fetch(
+        `${evolutionUrl}/instance/fetchInstances`,
         {
           headers: { 'apikey': evolutionKey },
         }
       );
 
       let ownerJid = null;
-      if (connectionStateResponse.ok) {
-        const connectionData = await connectionStateResponse.json();
-        ownerJid = connectionData?.instance?.owner;
-        console.log(`👤 Owner JID: ${ownerJid}`);
+      if (fetchInstancesResponse.ok) {
+        const instances = await fetchInstancesResponse.json();
+        console.log(`📱 Total de instâncias encontradas: ${instances?.length || 0}`);
+        
+        // Find the specific instance
+        const instanceData = instances?.find((inst: any) => 
+          inst?.instance?.instanceName === instance.instance_id
+        );
+        
+        if (instanceData?.instance?.owner) {
+          ownerJid = instanceData.instance.owner;
+          console.log(`👤 Owner JID encontrado: ${ownerJid}`);
+        } else {
+          console.warn(`⚠️ Owner JID não encontrado para instância ${instance.instance_id}`);
+        }
+      } else {
+        console.error(`❌ Erro ao buscar instâncias: ${fetchInstancesResponse.status}`);
       }
       
+      // Validate group JID format
+      if (!groupId.includes('@g.us')) {
+        console.error(`❌ JID inválido: ${groupId} (deve terminar com @g.us)`);
+        await supabase.from('dispatch_logs').insert({
+          user_id: automation.user_id,
+          automation_id: automation.id,
+          automation_name: automation.name || 'Automação',
+          store: automation.stores[0] || 'shopee',
+          group_id: groupId,
+          product_url: 'https://error.log',
+          status: 'error',
+          error: `JID inválido: ${groupId}. Sincronize novamente os grupos.`,
+        });
+        continue;
+      }
+
+      console.log(`🔍 Buscando mensagens com JID validado: ${groupId}`);
+
       const messagesResponse = await fetch(
         `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
         {
@@ -413,6 +444,8 @@ async function processMonitorMode(supabase: any, automation: Automation) {
           }),
         }
       );
+
+      console.log(`📡 Status da busca de mensagens: ${messagesResponse.status}`);
 
       if (!messagesResponse.ok) {
         const errorText = await messagesResponse.text();
@@ -517,7 +550,20 @@ ${cta} ${affiliateUrl}`;
             
             for (const targetGroupId of automation.send_groups) {
               try {
+                // Validate target group JID
+                if (!targetGroupId.includes('@g.us')) {
+                  console.error(`❌ JID de destino inválido: ${targetGroupId}`);
+                  throw new Error(`JID inválido: ${targetGroupId}. Sincronize novamente os grupos.`);
+                }
+
                 console.log(`📨 Enviando para grupo ${targetGroupId}...`);
+                console.log(`📝 Mensagem: ${formattedMessage.substring(0, 100)}...`);
+
+                const sendPayload = {
+                  number: targetGroupId,
+                  text: formattedMessage,
+                };
+                console.log(`📦 Payload:`, JSON.stringify(sendPayload, null, 2));
 
                 const sendResponse = await fetch(
                   `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
@@ -527,21 +573,33 @@ ${cta} ${affiliateUrl}`;
                       'Content-Type': 'application/json',
                       'apikey': evolutionKey,
                     },
-                    body: JSON.stringify({
-                      number: targetGroupId,
-                      text: formattedMessage,
-                    }),
+                    body: JSON.stringify(sendPayload),
                   }
                 );
 
+                console.log(`📡 Status do envio: ${sendResponse.status} ${sendResponse.statusText}`);
+                const responseText = await sendResponse.text();
+                console.log(`📄 Resposta bruta: ${responseText}`);
+
                 if (!sendResponse.ok) {
-                  throw new Error(`Evolution API retornou ${sendResponse.status}`);
+                  throw new Error(`Evolution API retornou ${sendResponse.status}: ${responseText}`);
                 }
 
-                const sendData = await sendResponse.json();
+                let sendData;
+                try {
+                  sendData = JSON.parse(responseText);
+                } catch (e) {
+                  throw new Error(`Resposta JSON inválida: ${responseText}`);
+                }
                 
-                if (sendData.error || !sendData.key) {
-                  throw new Error(sendData.error || 'Resposta inválida');
+                console.log(`✅ Resposta parseada:`, JSON.stringify(sendData, null, 2));
+
+                if (sendData.error) {
+                  throw new Error(`API Error: ${sendData.error}`);
+                }
+                
+                if (!sendData.key && !sendData.message) {
+                  throw new Error(`Resposta sem key/message: ${JSON.stringify(sendData)}`);
                 }
 
                 // Log successful dispatch
@@ -932,8 +990,32 @@ ${cta} ${affiliateUrl}
       let response;
       let responseData;
 
+      // Validate group JID
+      if (!groupId.includes('@g.us')) {
+        console.error(`❌ JID inválido: ${groupId} (deve terminar com @g.us)`);
+        await supabase.from('dispatch_logs').insert({
+          user_id: automation.user_id,
+          automation_id: automation.id,
+          automation_name: automation.name || 'Automação',
+          store,
+          group_id: groupId,
+          product_url: deal.product_url,
+          status: 'error',
+          error: `JID inválido: ${groupId}. Sincronize novamente os grupos na tela de Grupos.`,
+        });
+        continue;
+      }
+
       // TEMPORARY: Sending text only (image disabled for testing)
       console.log('📝 Enviando apenas texto (imagem desabilitada temporariamente)');
+      console.log(`🎯 Grupo destino (JID validado): ${groupId}`);
+      
+      const sendPayload = {
+        number: groupId,
+        text: formattedMessage,
+      };
+      console.log(`📦 Payload:`, JSON.stringify(sendPayload, null, 2));
+
       response = await fetch(
         `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
         {
@@ -942,12 +1024,11 @@ ${cta} ${affiliateUrl}
             'Content-Type': 'application/json',
             'apikey': evolutionKey,
           },
-          body: JSON.stringify({
-            number: groupId,
-            text: formattedMessage,
-          }),
+          body: JSON.stringify(sendPayload),
         }
       );
+
+      console.log(`📡 Status do envio: ${response.status} ${response.statusText}`);
 
       // Check if request was successful
       if (!response.ok) {
@@ -956,15 +1037,29 @@ ${cta} ${affiliateUrl}
         throw new Error(`Evolution API retornou ${response.status}: ${errorText}`);
       }
 
+      // Get response text first
+      const responseText = await response.text();
+      console.log(`📄 Resposta bruta: ${responseText}`);
+
       // Parse response
-      responseData = await response.json();
-      console.log('📥 Resposta da Evolution API:', JSON.stringify(responseData));
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('📥 Resposta parseada:', JSON.stringify(responseData, null, 2));
+      } catch (e) {
+        console.error(`❌ Erro ao parsear JSON:`, e);
+        throw new Error(`Resposta JSON inválida: ${responseText}`);
+      }
 
       // Check if Evolution API reported an error in the response
-      if (responseData.error || !responseData.key) {
-        const errorMsg = responseData.error || 'Resposta inválida da Evolution API';
+      if (responseData.error) {
+        const errorMsg = responseData.error;
         console.error(`❌ Erro na resposta da Evolution:`, errorMsg);
         throw new Error(errorMsg);
+      }
+      
+      if (!responseData.key && !responseData.message) {
+        console.error(`❌ Resposta sem key/message:`, responseData);
+        throw new Error(`Resposta sem confirmação de envio: ${JSON.stringify(responseData)}`);
       }
 
       // Log successful dispatch ONLY if everything worked
