@@ -135,7 +135,7 @@ async function searchShopeeProducts(
   const variables = {
     listType: 0, // 0 = All products
     sortType: sortType,
-    limit: 100, // Get more products to filter by category later
+    limit: 50, // Maximum allowed by Shopee API
     page: 1,
   };
 
