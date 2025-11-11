@@ -88,6 +88,7 @@ export default function OfferAutomations() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [activeStores, setActiveStores] = useState<StoreKey[]>([]);
+  const [runningId, setRunningId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Automation>>({
@@ -295,6 +296,62 @@ export default function OfferAutomations() {
       ctas: [],
       status: "active",
     });
+  };
+
+  const handleRunNow = async (automation: Automation) => {
+    if (!whatsappConnected) {
+      toast({
+        title: "WhatsApp desconectado",
+        description: "Conecte o WhatsApp para executar automações.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRunningId(automation.id);
+
+    try {
+      // Update last_run_at and next_run_at
+      const now = new Date();
+      const nextRun = new Date(now.getTime() + automation.interval_minutes * 60000);
+
+      const { error } = await supabase
+        .from("automations")
+        .update({
+          last_run_at: now.toISOString(),
+          next_run_at: nextRun.toISOString(),
+        })
+        .eq("id", automation.id);
+
+      if (error) throw error;
+
+      // Create a dispatch log entry for manual execution
+      await supabase.from("dispatch_logs").insert({
+        user_id: user?.id,
+        automation_id: automation.id,
+        automation_name: automation.name,
+        store: automation.stores[0] || "shopee",
+        group_id: automation.send_groups[0] || "",
+        product_url: "manual-execution",
+        status: "sent",
+      });
+
+      toast({
+        title: "Automação executada!",
+        description: `A automação "${automation.name}" foi executada manualmente.`,
+      });
+
+      loadAutomations();
+    } catch (error) {
+      console.error("Error running automation:", error);
+      toast({
+        title: "Erro ao executar",
+        description: "Não foi possível executar a automação.",
+        variant: "destructive",
+      });
+    } finally {
+      setRunningId(null);
+    }
   };
 
   const addText = () => {
@@ -699,13 +756,29 @@ export default function OfferAutomations() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(auto)}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => openEdit(auto)}
+                          title="Editar automação"
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon">
-                          <Play className="h-4 w-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleRunNow(auto)}
+                          disabled={runningId === auto.id || auto.status !== "active"}
+                          title="Executar agora"
+                        >
+                          <Play className={`h-4 w-4 ${runningId === auto.id ? "animate-pulse" : ""}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(auto.id)}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete(auto.id)}
+                          title="Excluir automação"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
