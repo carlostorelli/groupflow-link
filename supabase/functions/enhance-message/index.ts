@@ -20,60 +20,6 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    // Tentar extrair a imagem do produto se for link da Shopee
-    let productImage = null;
-    try {
-      const shopeeMatch = productLinks.match(/shopee\.com\.br\/.*?-i\.(\d+)\.(\d+)/);
-      if (shopeeMatch) {
-        console.log('Link da Shopee detectado, tentando buscar imagem...');
-        const shopId = shopeeMatch[1];
-        const itemId = shopeeMatch[2];
-        
-        try {
-          // Tentar via API da Shopee primeiro
-          const apiUrl = `https://shopee.com.br/api/v4/item/get?shopid=${shopId}&itemid=${itemId}`;
-          console.log('Buscando na API da Shopee:', apiUrl);
-          
-          const apiResponse = await fetch(apiUrl);
-          if (apiResponse.ok) {
-            const data = await apiResponse.json();
-            if (data?.data?.item?.image) {
-              productImage = `https://cf.shopee.com.br/file/${data.data.item.image}`;
-              console.log('Imagem do produto encontrada via API:', productImage);
-            } else if (data?.data?.item?.images && data.data.item.images.length > 0) {
-              productImage = `https://cf.shopee.com.br/file/${data.data.item.images[0]}`;
-              console.log('Imagem do produto encontrada via API (images array):', productImage);
-            }
-          }
-        } catch (apiError) {
-          console.log('Erro ao buscar via API da Shopee:', apiError);
-        }
-        
-        // Fallback: tentar scraping da página
-        if (!productImage) {
-          console.log('Tentando scraping da página como fallback...');
-          const pageResponse = await fetch(productLinks, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-          });
-          
-          if (pageResponse.ok) {
-            const html = await pageResponse.text();
-            // Tentar encontrar a imagem do produto no HTML
-            const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-            if (imageMatch) {
-              productImage = imageMatch[1];
-              console.log('Imagem do produto encontrada via scraping:', productImage);
-            }
-          }
-        }
-      }
-    } catch (imageError) {
-      console.log('Não foi possível extrair imagem do produto:', imageError);
-      // Continua mesmo sem a imagem
-    }
-
     const styleDescriptions: Record<string, string> = {
       aggressive: 'Venda Agressiva - Use linguagem direta, imperativos, CAPS LOCK estratégico, senso de oportunidade única',
       scarcity: 'Escassez e Urgência - Foque em tempo limitado, estoque acabando, "últimas unidades", "só hoje"',
@@ -157,11 +103,6 @@ Retorne APENAS um JSON válido (sem markdown) no seguinte formato:
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     
     const result = JSON.parse(content);
-    
-    // Adicionar a imagem do produto ao resultado
-    if (productImage) {
-      result.productImage = productImage;
-    }
 
     console.log('Mensagens criadas com sucesso');
 
