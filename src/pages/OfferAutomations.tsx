@@ -489,7 +489,7 @@ export default function OfferAutomations() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Automações de Ofertas</h1>
+          <h1 className="text-3xl font-bold">Divulgações de IA</h1>
           <p className="text-muted-foreground">Busca e monitoramento de promoções com IA</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

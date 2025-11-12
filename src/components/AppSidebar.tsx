@@ -45,7 +45,7 @@ const menuItems = [
   { title: "Link de Redirecionamento", url: "/redirect", icon: Link2 },
   { title: "Extrator de Contatos", url: "/contacts", icon: UserPlus },
   { title: "Ferramentas de IA", url: "/ai-tools", icon: Sparkles },
-  { title: "Automações de Ofertas", url: "/offer-automations", icon: Zap },
+  { title: "Divulgações de IA", url: "/offer-automations", icon: Zap },
   { title: "Programas de Afiliado", url: "/affiliate-programs", icon: CreditCard },
   { title: "Logs de Automações", url: "/automation-logs", icon: FileText },
   { title: "Histórico", url: "/history", icon: History },
