@@ -20,6 +20,34 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
+    // Tentar extrair a imagem do produto se for link da Shopee
+    let productImage = null;
+    try {
+      const shopeeMatch = productLinks.match(/shopee\.com\.br\/[^\/]+\/([^\/\?]+)/);
+      if (shopeeMatch) {
+        console.log('Link da Shopee detectado, tentando buscar imagem...');
+        // Para simplificar, vamos extrair a imagem da página
+        const pageResponse = await fetch(productLinks, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        if (pageResponse.ok) {
+          const html = await pageResponse.text();
+          // Tentar encontrar a imagem do produto no HTML
+          const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+          if (imageMatch) {
+            productImage = imageMatch[1];
+            console.log('Imagem do produto encontrada:', productImage);
+          }
+        }
+      }
+    } catch (imageError) {
+      console.log('Não foi possível extrair imagem do produto:', imageError);
+      // Continua mesmo sem a imagem
+    }
+
     const styleDescriptions: Record<string, string> = {
       aggressive: 'Venda Agressiva - Use linguagem direta, imperativos, CAPS LOCK estratégico, senso de oportunidade única',
       scarcity: 'Escassez e Urgência - Foque em tempo limitado, estoque acabando, "últimas unidades", "só hoje"',
@@ -103,6 +131,11 @@ Retorne APENAS um JSON válido (sem markdown) no seguinte formato:
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     
     const result = JSON.parse(content);
+    
+    // Adicionar a imagem do produto ao resultado
+    if (productImage) {
+      result.productImage = productImage;
+    }
 
     console.log('Mensagens criadas com sucesso');
 

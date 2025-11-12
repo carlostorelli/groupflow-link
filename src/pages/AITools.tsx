@@ -35,6 +35,13 @@ export default function AITools() {
   const [affiliateLink, setAffiliateLink] = useState("");
   const [copyStyle, setCopyStyle] = useState("aggressive");
   const [messageResult, setMessageResult] = useState<any>(null);
+  
+  // Image Generator State
+  const [topText, setTopText] = useState("PROMOÇÃO");
+  const [bottomText, setBottomText] = useState("Válida por tempo determinado");
+  const [selectedColor, setSelectedColor] = useState("#FF6B6B");
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
 
   // Load user's groups
   useEffect(() => {
@@ -224,6 +231,7 @@ export default function AITools() {
       if (error) throw error;
 
       setMessageResult(data);
+      setGeneratedImage(null); // Reset generated image
       toast({
         title: "Mensagens criadas! ✨",
         description: "Escolha a que mais combina com você",
@@ -237,6 +245,60 @@ export default function AITools() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!messageResult?.productImage) {
+      toast({
+        title: "Erro",
+        description: "Primeiro gere as mensagens para obter a imagem do produto",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!topText.trim() || !bottomText.trim()) {
+      toast({
+        title: "Erro",
+        description: "Preencha os textos superior e inferior",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-offer-post-image', {
+        body: {
+          productImageUrl: messageResult.productImage,
+          topText: topText.trim(),
+          bottomText: bottomText.trim(),
+          backgroundColor: selectedColor
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.imageUrl) {
+        setGeneratedImage(data.imageUrl);
+        toast({
+          title: "Imagem criada! 🎨",
+          description: "Sua arte de postagem está pronta",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generating image:', error);
+      
+      const errorMsg = error?.message || 'Não foi possível gerar a imagem';
+      
+      toast({
+        title: "Erro ao gerar imagem",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingImage(false);
     }
   };
 
@@ -656,6 +718,117 @@ export default function AITools() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+
+                  {/* Image Generator Section */}
+                  <div className="p-4 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg border-2 border-primary/20">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      🎨 Gerar Arte de Postagem
+                    </h3>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="topText">Texto Superior</Label>
+                          <Input
+                            id="topText"
+                            value={topText}
+                            onChange={(e) => setTopText(e.target.value)}
+                            placeholder="Ex: PROMOÇÃO"
+                            maxLength={30}
+                          />
+                          <p className="text-xs text-muted-foreground">Texto grande no topo da imagem</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="bottomText">Texto Inferior</Label>
+                          <Input
+                            id="bottomText"
+                            value={bottomText}
+                            onChange={(e) => setBottomText(e.target.value)}
+                            placeholder="Ex: Válida por tempo determinado"
+                            maxLength={50}
+                          />
+                          <p className="text-xs text-muted-foreground">Texto menor no rodapé da imagem</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="bgColor">Cor de Fundo</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="bgColor"
+                              type="color"
+                              value={selectedColor}
+                              onChange={(e) => setSelectedColor(e.target.value)}
+                              className="w-20 h-10"
+                            />
+                            <Input
+                              type="text"
+                              value={selectedColor}
+                              onChange={(e) => setSelectedColor(e.target.value)}
+                              placeholder="#FF6B6B"
+                              className="flex-1"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">Escolha a cor predominante da postagem</p>
+                        </div>
+
+                        <Button 
+                          onClick={handleGenerateImage} 
+                          disabled={generatingImage}
+                          className="w-full"
+                        >
+                          {generatingImage ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Gerando imagem...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              Gerar Arte
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Preview da Arte</Label>
+                        <div className="bg-background rounded-lg border-2 border-dashed border-border p-4 min-h-[300px] flex items-center justify-center">
+                          {generatedImage ? (
+                            <div className="space-y-2 w-full">
+                              <img 
+                                src={generatedImage} 
+                                alt="Arte gerada" 
+                                className="w-full rounded-lg shadow-lg"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = generatedImage;
+                                  link.download = 'postagem.png';
+                                  link.click();
+                                  toast({
+                                    title: "Download iniciado!",
+                                    description: "A imagem está sendo baixada",
+                                  });
+                                }}
+                              >
+                                Baixar Imagem
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="text-center text-muted-foreground">
+                              <Sparkles className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">A arte aparecerá aqui</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
