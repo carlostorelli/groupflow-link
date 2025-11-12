@@ -334,6 +334,7 @@ export default function AITools() {
     setGeneratingImage(true);
     try {
       // Primeiro, buscar dados do produto e imagem
+      console.log('Buscando dados do produto...');
       const { data: messageData, error: messageError } = await supabase.functions.invoke('enhance-message', {
         body: { 
           productLinks: artProductLink, 
@@ -342,15 +343,21 @@ export default function AITools() {
         }
       });
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error('Erro ao buscar dados:', messageError);
+        throw new Error(messageError.message || 'Erro ao buscar dados do produto');
+      }
       
       if (!messageData?.productImage) {
-        throw new Error('Não foi possível obter a imagem do produto');
+        console.error('Resposta da API:', messageData);
+        throw new Error('Não foi possível obter a imagem do produto. Verifique se o link está correto e tente novamente.');
       }
 
+      console.log('Imagem do produto obtida:', messageData.productImage);
       setProductImageUrl(messageData.productImage);
 
       // Depois, gerar a arte com a imagem
+      console.log('Gerando arte de postagem...');
       const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-offer-post-image', {
         body: {
           productImageUrl: messageData.productImage,
@@ -362,7 +369,10 @@ export default function AITools() {
         }
       });
 
-      if (imageError) throw imageError;
+      if (imageError) {
+        console.error('Erro ao gerar arte:', imageError);
+        throw new Error(imageError.message || 'Erro ao gerar a arte');
+      }
 
       if (imageData?.imageUrl) {
         setGeneratedImage(imageData.imageUrl);
@@ -370,6 +380,8 @@ export default function AITools() {
           title: "Arte criada! 🎨",
           description: "Sua arte de postagem está pronta para uso",
         });
+      } else {
+        throw new Error('Arte não foi gerada corretamente');
       }
     } catch (error: any) {
       console.error('Error generating complete art:', error);
