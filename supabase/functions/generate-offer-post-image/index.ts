@@ -15,14 +15,18 @@ serve(async (req) => {
       productImageUrl, 
       topText, 
       bottomText, 
-      backgroundColor 
+      backgroundColor,
+      layout = 'square',
+      template = 'default'
     } = await req.json();
 
     console.log('Gerando imagem de postagem com:', { 
       productImageUrl, 
       topText, 
       bottomText, 
-      backgroundColor 
+      backgroundColor,
+      layout,
+      template
     });
 
     if (!productImageUrl || !topText) {
@@ -31,6 +35,38 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Definir dimensões baseado no layout
+    const dimensions: Record<string, { width: number; height: number }> = {
+      square: { width: 1024, height: 1024 },
+      horizontal: { width: 1024, height: 576 },
+      vertical: { width: 576, height: 1024 }
+    };
+
+    const { width, height } = dimensions[layout] || dimensions.square;
+
+    // Templates predefinidos
+    const templates: Record<string, { colors: string; style: string }> = {
+      default: {
+        colors: backgroundColor,
+        style: 'moderno e profissional'
+      },
+      blackfriday: {
+        colors: '#000000 com detalhes em amarelo/dourado (#FFD700)',
+        style: 'BLACK FRIDAY - use elementos de fogo, raios, explosões. Muito impacto visual e senso de urgência'
+      },
+      natal: {
+        colors: '#C41E3A (vermelho natal) e #165B33 (verde natal) com detalhes dourados',
+        style: 'NATAL - use elementos natalinos como estrelas, neve, presentes. Ambiente festivo e acolhedor'
+      },
+      fretegratis: {
+        colors: '#00A86B (verde) com detalhes em branco',
+        style: 'FRETE GRÁTIS - destaque visual para "FRETE GRÁTIS", use ícones de entrega, caminhões. Transmita economia e conveniência'
+      }
+    };
+
+    const templateConfig = templates[template] || templates.default;
+    const finalBgColor = template === 'default' ? backgroundColor : templateConfig.colors;
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -53,21 +89,36 @@ serve(async (req) => {
     );
 
     // Criar prompt para a IA gerar a imagem de postagem
+    const layoutDescription = layout === 'horizontal' 
+      ? 'formato HORIZONTAL (paisagem) ideal para stories e posts'
+      : layout === 'vertical' 
+      ? 'formato VERTICAL (retrato) ideal para Instagram Stories e WhatsApp Status'
+      : 'formato QUADRADO ideal para feed do Instagram';
+
     const prompt = `Crie uma imagem de postagem para redes sociais com as seguintes especificações:
 
+DIMENSÕES:
+- Tamanho: ${width}x${height}px
+- Formato: ${layoutDescription}
+
 LAYOUT:
-- Fundo: cor sólida ${backgroundColor}
-- Topo (25% superior): Texto "${topText}" em fonte GRANDE, BOLD, branca com sombra
-- Centro (50%): Imagem do produto fornecida, centralizada e com boa visibilidade
-- Rodapé (25% inferior): Texto "${bottomText}" em fonte menor (50% do topo), branca com sombra
+- Fundo: ${finalBgColor}
+- Topo (${layout === 'horizontal' ? '30%' : '20%'} superior): Texto "${topText}" em fonte GRANDE, BOLD, branca com sombra preta para contraste
+- Centro (${layout === 'horizontal' ? '40%' : '55%'}): Imagem do produto fornecida, centralizada, com destaque e boa visibilidade
+- Rodapé (${layout === 'horizontal' ? '30%' : '25%'} inferior): Texto "${bottomText}" em fonte menor (60% do topo), branca com sombra
 
-ESTILO:
-- Design moderno e profissional para e-commerce
-- Alto contraste para legibilidade
+ESTILO VISUAL:
+- ${templateConfig.style}
+- Design ${template === 'default' ? 'moderno e profissional' : 'temático e impactante'} para e-commerce
+- Alto contraste para legibilidade máxima
 - Composição equilibrada e atraente
-- Tamanho: 1024x1024px
+- Tipografia clara e legível
+${template !== 'default' ? `- Elementos visuais relacionados ao tema ${template}` : ''}
 
-IMPORTANTE: A imagem do produto deve estar CLARAMENTE VISÍVEL no centro da composição.`;
+IMPORTANTE: 
+- A imagem do produto deve estar CLARAMENTE VISÍVEL e ser o FOCO PRINCIPAL
+- Textos devem ser MUITO LEGÍVEIS com contraste forte
+- Se for tema especial (Black Friday, Natal, Frete Grátis), adicione elementos visuais relacionados mas sem ofuscar o produto`;
 
     console.log('Chamando API Lovable AI para gerar imagem...');
     

@@ -40,6 +40,8 @@ export default function AITools() {
   const [topText, setTopText] = useState("PROMOÇÃO");
   const [bottomText, setBottomText] = useState("Válida por tempo determinado");
   const [selectedColor, setSelectedColor] = useState("#FF6B6B");
+  const [selectedLayout, setSelectedLayout] = useState("square");
+  const [selectedTemplate, setSelectedTemplate] = useState("default");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatingImage, setGeneratingImage] = useState(false);
 
@@ -274,7 +276,9 @@ export default function AITools() {
           productImageUrl: messageResult.productImage,
           topText: topText.trim(),
           bottomText: bottomText.trim(),
-          backgroundColor: selectedColor
+          backgroundColor: selectedColor,
+          layout: selectedLayout,
+          template: selectedTemplate
         }
       });
 
@@ -729,6 +733,53 @@ export default function AITools() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-4">
                         <div className="space-y-2">
+                          <Label htmlFor="layout">Formato da Imagem</Label>
+                          <Select value={selectedLayout} onValueChange={setSelectedLayout}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o formato" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="square">⬜ Quadrado (1:1) - Feed Instagram</SelectItem>
+                              <SelectItem value="horizontal">🖼️ Horizontal (16:9) - Posts e Stories</SelectItem>
+                              <SelectItem value="vertical">📱 Vertical (9:16) - Stories WhatsApp</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Escolha o formato ideal para sua rede social</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="template">Template / Tema</Label>
+                          <Select value={selectedTemplate} onValueChange={(value) => {
+                            setSelectedTemplate(value);
+                            // Atualizar textos baseado no template
+                            if (value === 'blackfriday') {
+                              setTopText('BLACK FRIDAY');
+                              setBottomText('Desconto Imperdível');
+                            } else if (value === 'natal') {
+                              setTopText('OFERTA DE NATAL');
+                              setBottomText('Presente Perfeito');
+                            } else if (value === 'fretegratis') {
+                              setTopText('FRETE GRÁTIS');
+                              setBottomText('Aproveite a Promoção');
+                            } else {
+                              setTopText('PROMOÇÃO');
+                              setBottomText('Válida por tempo determinado');
+                            }
+                          }}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tema" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">✨ Personalizado (Suas Cores)</SelectItem>
+                              <SelectItem value="blackfriday">🔥 Black Friday</SelectItem>
+                              <SelectItem value="natal">🎄 Natal</SelectItem>
+                              <SelectItem value="fretegratis">🚚 Frete Grátis</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">Templates otimizados para ocasiões especiais</p>
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="topText">Texto Superior</Label>
                           <Input
                             id="topText"
@@ -752,26 +803,28 @@ export default function AITools() {
                           <p className="text-xs text-muted-foreground">Texto menor no rodapé da imagem</p>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="bgColor">Cor de Fundo</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="bgColor"
-                              type="color"
-                              value={selectedColor}
-                              onChange={(e) => setSelectedColor(e.target.value)}
-                              className="w-20 h-10"
-                            />
-                            <Input
-                              type="text"
-                              value={selectedColor}
-                              onChange={(e) => setSelectedColor(e.target.value)}
-                              placeholder="#FF6B6B"
-                              className="flex-1"
-                            />
+                        {selectedTemplate === 'default' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="bgColor">Cor de Fundo (apenas no modo Personalizado)</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="bgColor"
+                                type="color"
+                                value={selectedColor}
+                                onChange={(e) => setSelectedColor(e.target.value)}
+                                className="w-20 h-10"
+                              />
+                              <Input
+                                type="text"
+                                value={selectedColor}
+                                onChange={(e) => setSelectedColor(e.target.value)}
+                                placeholder="#FF6B6B"
+                                className="flex-1"
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">Escolha a cor predominante da postagem</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">Escolha a cor predominante da postagem</p>
-                        </div>
+                        )}
 
                         <Button 
                           onClick={handleGenerateImage} 
@@ -824,6 +877,14 @@ export default function AITools() {
                             <div className="text-center text-muted-foreground">
                               <Sparkles className="h-12 w-12 mx-auto mb-2 opacity-50" />
                               <p className="text-sm">A arte aparecerá aqui</p>
+                              <p className="text-xs mt-2">
+                                Formato: {selectedLayout === 'square' ? 'Quadrado' : selectedLayout === 'horizontal' ? 'Horizontal' : 'Vertical'}
+                              </p>
+                              <p className="text-xs">
+                                Template: {selectedTemplate === 'default' ? 'Personalizado' : 
+                                          selectedTemplate === 'blackfriday' ? 'Black Friday' : 
+                                          selectedTemplate === 'natal' ? 'Natal' : 'Frete Grátis'}
+                              </p>
                             </div>
                           )}
                         </div>
