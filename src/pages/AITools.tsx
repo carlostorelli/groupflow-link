@@ -36,7 +36,10 @@ export default function AITools() {
   const [copyStyle, setCopyStyle] = useState("aggressive");
   const [messageResult, setMessageResult] = useState<any>(null);
   
-  // Image Generator State
+  // Image Generator State (standalone)
+  const [artProductLink, setArtProductLink] = useState("");
+  const [artAffiliateLink, setArtAffiliateLink] = useState("");
+  const [artCopyStyle, setArtCopyStyle] = useState("aggressive");
   const [topText, setTopText] = useState("PROMOÇÃO");
   const [bottomText, setBottomText] = useState("Válida por tempo determinado");
   const [selectedColor, setSelectedColor] = useState("#FF6B6B");
@@ -44,6 +47,7 @@ export default function AITools() {
   const [selectedTemplate, setSelectedTemplate] = useState("default");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
 
   // Load user's groups
   useEffect(() => {
@@ -250,6 +254,7 @@ export default function AITools() {
     }
   };
 
+  // Gerar arte a partir da imagem que já foi buscada (para aba Mensagens)
   const handleGenerateImage = async () => {
     if (!messageResult?.productImage) {
       toast({
@@ -306,6 +311,81 @@ export default function AITools() {
     }
   };
 
+  // Gerar arte completa diretamente do link do produto (para aba Artes standalone)
+  const handleGenerateCompleteArt = async () => {
+    if (!artProductLink.trim()) {
+      toast({
+        title: "Erro",
+        description: "Cole o link do produto Shopee",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!topText.trim() || !bottomText.trim()) {
+      toast({
+        title: "Erro",
+        description: "Preencha os textos superior e inferior",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      // Primeiro, buscar dados do produto e imagem
+      const { data: messageData, error: messageError } = await supabase.functions.invoke('enhance-message', {
+        body: { 
+          productLinks: artProductLink, 
+          copyStyle: artCopyStyle,
+          affiliateLink: artAffiliateLink || null
+        }
+      });
+
+      if (messageError) throw messageError;
+      
+      if (!messageData?.productImage) {
+        throw new Error('Não foi possível obter a imagem do produto');
+      }
+
+      setProductImageUrl(messageData.productImage);
+
+      // Depois, gerar a arte com a imagem
+      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-offer-post-image', {
+        body: {
+          productImageUrl: messageData.productImage,
+          topText: topText.trim(),
+          bottomText: bottomText.trim(),
+          backgroundColor: selectedColor,
+          layout: selectedLayout,
+          template: selectedTemplate
+        }
+      });
+
+      if (imageError) throw imageError;
+
+      if (imageData?.imageUrl) {
+        setGeneratedImage(imageData.imageUrl);
+        toast({
+          title: "Arte criada! 🎨",
+          description: "Sua arte de postagem está pronta para uso",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generating complete art:', error);
+      
+      const errorMsg = error?.message || 'Não foi possível gerar a arte';
+      
+      toast({
+        title: "Erro ao gerar arte",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -316,7 +396,7 @@ export default function AITools() {
       </div>
 
       <Tabs defaultValue="campaign" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="campaign">
             <Sparkles className="h-4 w-4 mr-2" />
             Criar Campanha
@@ -332,6 +412,10 @@ export default function AITools() {
           <TabsTrigger value="messages">
             <MessageSquare className="h-4 w-4 mr-2" />
             Mensagens
+          </TabsTrigger>
+          <TabsTrigger value="artes">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Artes
           </TabsTrigger>
         </TabsList>
 
@@ -893,6 +977,204 @@ export default function AITools() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Artes Tab - Standalone Image Generator */}
+        <TabsContent value="artes" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>🎨 Gerar Arte de Postagem</CardTitle>
+              <CardDescription>
+                Crie artes profissionais com a imagem do produto para suas redes sociais
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Configuration Side */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="artProductLink">Link do Produto Shopee</Label>
+                    <Input
+                      id="artProductLink"
+                      placeholder="Cole o link do produto aqui"
+                      value={artProductLink}
+                      onChange={(e) => setArtProductLink(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Cole o link do produto para gerar a arte</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="artAffiliateLink">Link de Afiliado (Opcional)</Label>
+                    <Input
+                      id="artAffiliateLink"
+                      placeholder="Cole seu link de afiliado"
+                      value={artAffiliateLink}
+                      onChange={(e) => setArtAffiliateLink(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="artCopyStyle">Modelo de Vendas</Label>
+                    <Select value={artCopyStyle} onValueChange={setArtCopyStyle}>
+                      <SelectTrigger id="artCopyStyle">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aggressive">🔥 Agressivo - Urgência e escassez</SelectItem>
+                        <SelectItem value="friendly">😊 Amigável - Conversacional</SelectItem>
+                        <SelectItem value="professional">💼 Profissional - Formal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="layout">Formato da Imagem</Label>
+                    <Select value={selectedLayout} onValueChange={setSelectedLayout}>
+                      <SelectTrigger id="layout">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="square">⬜ Quadrado (1:1) - Feed Instagram</SelectItem>
+                        <SelectItem value="horizontal">▬ Horizontal (16:9) - Stories</SelectItem>
+                        <SelectItem value="vertical">▮ Vertical (9:16) - Reels/TikTok</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Escolha o formato ideal para sua rede social</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="template">Template / Tema</Label>
+                    <Select 
+                      value={selectedTemplate} 
+                      onValueChange={(value) => {
+                        setSelectedTemplate(value);
+                        // Auto-fill texts based on template
+                        if (value === 'blackfriday') {
+                          setTopText('BLACK FRIDAY');
+                          setBottomText('Desconto Imperdível');
+                        } else if (value === 'natal') {
+                          setTopText('OFERTA DE NATAL');
+                          setBottomText('Presente Perfeito');
+                        } else if (value === 'fretegratis') {
+                          setTopText('FRETE GRÁTIS');
+                          setBottomText('Aproveite Agora');
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="template">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">🎨 Personalizado</SelectItem>
+                        <SelectItem value="blackfriday">🔥 Black Friday</SelectItem>
+                        <SelectItem value="natal">🎄 Natal</SelectItem>
+                        <SelectItem value="fretegratis">📦 Frete Grátis</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Templates otimizados para ocasiões especiais</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="topText">Texto Superior</Label>
+                    <Input
+                      id="topText"
+                      placeholder="Ex: SUPER OFERTA"
+                      value={topText}
+                      onChange={(e) => setTopText(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Texto grande no topo da imagem</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bottomText">Texto Inferior</Label>
+                    <Input
+                      id="bottomText"
+                      placeholder="Ex: Desconto de até 70%"
+                      value={bottomText}
+                      onChange={(e) => setBottomText(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Texto menor no rodapé da imagem</p>
+                  </div>
+
+                  {selectedTemplate === 'default' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bgColor">Cor Predominante de Fundo</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="bgColor"
+                          type="color"
+                          value={selectedColor}
+                          onChange={(e) => setSelectedColor(e.target.value)}
+                          className="w-20 h-10"
+                        />
+                        <Input
+                          value={selectedColor}
+                          onChange={(e) => setSelectedColor(e.target.value)}
+                          placeholder="#FF6B6B"
+                          className="flex-1"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Escolha a cor de fundo da arte</p>
+                    </div>
+                  )}
+
+                  <Button 
+                    onClick={handleGenerateCompleteArt} 
+                    disabled={generatingImage}
+                    className="w-full"
+                  >
+                    {generatingImage ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Gerando arte...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Gerar Arte
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Preview Side */}
+                <div className="space-y-2">
+                  <Label>Preview da Arte</Label>
+                  <div className="border-2 border-dashed rounded-lg p-8 min-h-[400px] flex items-center justify-center bg-muted/50">
+                    {generatedImage ? (
+                      <div className="w-full space-y-4">
+                        <img 
+                          src={generatedImage} 
+                          alt="Arte gerada" 
+                          className="w-full rounded-lg shadow-lg"
+                        />
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = generatedImage;
+                            link.download = `oferta-${Date.now()}.png`;
+                            link.click();
+                          }}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Baixar Imagem
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground">
+                        <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>A arte aparecerá aqui</p>
+                        <p className="text-sm mt-2">Formato: {selectedLayout === 'square' ? 'Quadrado' : selectedLayout === 'horizontal' ? 'Horizontal' : 'Vertical'}</p>
+                        <p className="text-sm">Template: {selectedTemplate === 'blackfriday' ? 'Black Friday' : selectedTemplate === 'natal' ? 'Natal' : selectedTemplate === 'fretegratis' ? 'Frete Grátis' : 'Personalizado'}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
