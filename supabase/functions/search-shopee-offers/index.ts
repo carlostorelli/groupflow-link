@@ -82,9 +82,25 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('💥 Erro ao buscar ofertas:', error);
+    
+    // Log full error details
+    if (error instanceof Error) {
+      console.error('📛 Error name:', error.name);
+      console.error('📛 Error message:', error.message);
+      console.error('📛 Error stack:', error.stack);
+    } else {
+      console.error('📛 Error object:', JSON.stringify(error, null, 2));
+    }
+    
     const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar ofertas';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        error: errorMessage,
+        stack: errorStack,
+        timestamp: new Date().toISOString()
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -99,6 +115,7 @@ async function searchShopeeProducts(
   
   // Build GraphQL query for product offers using productOfferV2
   // Based on working examples - only use fields that exist in the API
+  // NOTE: Fields 'discount' and 'priceBeforeDiscount' removed as they don't exist in ProductOfferV2
   const query = `
     query ProductOfferQuery($page: Int, $limit: Int, $listType: Int, $sortType: Int) {
       productOfferV2(
@@ -114,8 +131,6 @@ async function searchShopeeProducts(
           productName
           productLink
           offerLink
-          discount
-          priceBeforeDiscount
         }
         pageInfo {
           page
@@ -160,6 +175,12 @@ async function searchShopeeProducts(
     const timestamp = Math.floor(Date.now() / 1000);
     const signatureString = `${appId}${timestamp}${payload}${password}`;
     
+    console.log(`🔐 [DEBUG] Gerando assinatura para página ${page}`);
+    console.log(`  - appId: ${appId}`);
+    console.log(`  - timestamp: ${timestamp}`);
+    console.log(`  - payload length: ${payload.length} chars`);
+    console.log(`  - payload preview: ${payload.substring(0, 100)}...`);
+    
     // Calculate SHA256 hash
     const encoder = new TextEncoder();
     const data = encoder.encode(signatureString);
@@ -168,8 +189,13 @@ async function searchShopeeProducts(
     const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     const authHeader = `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
+    
+    console.log(`  - signature: ${signature.substring(0, 20)}...`);
+    console.log(`  - auth header: ${authHeader.substring(0, 80)}...`);
 
     console.log(`📡 Fazendo requisição para Shopee API (página ${page})...`);
+    console.log(`  - endpoint: ${endpoint}`);
+    console.log(`  - method: POST`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -180,11 +206,27 @@ async function searchShopeeProducts(
       body: payload,
     });
 
+    console.log(`📥 Resposta recebida da Shopee API (página ${page})`);
+    console.log(`  - status: ${response.status} ${response.statusText}`);
+    console.log(`  - headers:`, Object.fromEntries(response.headers.entries()));
+
     const responseData = await response.json();
+    
+    console.log(`📋 Response body preview:`, JSON.stringify(responseData).substring(0, 200));
+
+    if (!response.ok) {
+      console.error(`❌ HTTP ${response.status} - Resposta completa:`, JSON.stringify(responseData, null, 2));
+      throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseData)}`);
+    }
 
     if (responseData.errors) {
-      console.error('❌ Erros na API Shopee:', responseData.errors);
-      throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
+      console.error('❌ Erros GraphQL na API Shopee:', JSON.stringify(responseData.errors, null, 2));
+      const errorDetails = responseData.errors.map((e: any) => ({
+        message: e.message,
+        code: e.extensions?.code,
+        locations: e.locations,
+      }));
+      throw new Error(`Erro GraphQL Shopee: ${JSON.stringify(errorDetails)}`);
     }
 
     if (!responseData.data?.productOfferV2?.nodes) {
