@@ -329,13 +329,14 @@ async function searchShopeeProducts(
     console.log(`🔍 Filtrados ${filteredProducts.length} produtos por palavra-chave`);
   }
 
-  // Apply default max price to avoid very expensive products
-  const effectiveMaxPrice = searchParams.maxPrice || 150; // Max R$ 150 por padrão
-  filteredProducts = filteredProducts.filter((p: any) => {
-    const price = parseFloat(p.price) || 0;
-    return price <= effectiveMaxPrice && price > 0; // Evita preços muito altos e produtos grátis/suspeitos
-  });
-  console.log(`📊 Pool após filtro de preço máximo (R$ ${effectiveMaxPrice}): ${filteredProducts.length} produtos`);
+  // Apply max price filter only if explicitly set
+  if (searchParams.maxPrice !== undefined && searchParams.maxPrice !== null) {
+    filteredProducts = filteredProducts.filter((p: any) => {
+      const price = parseFloat(p.price) || 0;
+      return price <= searchParams.maxPrice! && price > 0;
+    });
+    console.log(`📊 Pool após filtro de preço máximo (R$ ${searchParams.maxPrice}): ${filteredProducts.length} produtos`);
+  }
 
   if (searchParams.minPrice) {
     filteredProducts = filteredProducts.filter((p: any) => 
@@ -344,24 +345,25 @@ async function searchShopeeProducts(
     console.log(`📊 Pool após filtro de preço mínimo: ${filteredProducts.length} produtos`);
   }
 
-  // Calculate real discount percentage and filter
-  const effectiveMinDiscount = searchParams.minDiscount || 30; // Min 30% de desconto por padrão
-  filteredProducts = filteredProducts.filter((p: any) => {
-    const price = parseFloat(p.price) || 0;
-    const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
-    const apiDiscount = parseFloat(p.discount) || 0;
-    
-    // Calculate discount percentage
-    let discountPercent = 0;
-    if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
-      discountPercent = ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
-    } else if (apiDiscount > 0) {
-      discountPercent = apiDiscount;
-    }
-    
-    return discountPercent >= effectiveMinDiscount;
-  });
-  console.log(`📊 Pool após filtro de desconto mínimo (${effectiveMinDiscount}%): ${filteredProducts.length} produtos`);
+  // Calculate real discount percentage and filter (only if minDiscount is explicitly set)
+  if (searchParams.minDiscount !== undefined && searchParams.minDiscount !== null) {
+    filteredProducts = filteredProducts.filter((p: any) => {
+      const price = parseFloat(p.price) || 0;
+      const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
+      const apiDiscount = parseFloat(p.discount) || 0;
+      
+      // Calculate discount percentage
+      let discountPercent = 0;
+      if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
+        discountPercent = ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
+      } else if (apiDiscount > 0) {
+        discountPercent = apiDiscount;
+      }
+      
+      return discountPercent >= searchParams.minDiscount!;
+    });
+    console.log(`📊 Pool após filtro de desconto mínimo (${searchParams.minDiscount}%): ${filteredProducts.length} produtos`);
+  }
   
   // SHUFFLE products to increase variety
   filteredProducts = filteredProducts.sort(() => Math.random() - 0.5);
