@@ -291,7 +291,35 @@ async function processSearchMode(supabase: any, automation: Automation) {
 
     } catch (error) {
       console.error(`❌ Erro ao processar loja ${cred.store}:`, error);
-      // Continue with next store
+      
+      // Extract error details
+      const errorType = (error as any).type || 'UNKNOWN_ERROR';
+      const status = (error as any).status;
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+      // Create detailed error log
+      const detailedErrorMsg = `Erro na busca da loja ${cred.store}: ${errorMessage}`;
+      
+      // Log error to dispatch_logs with classification
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automation.id,
+        automation_name: automation.name || 'Automação',
+        store: cred.store,
+        group_id: 'system',
+        product_url: 'https://search-error.log',
+        status: 'error',
+        error: detailedErrorMsg,
+      });
+
+      console.error('📊 Erro classificado:', {
+        store: cred.store,
+        errorType,
+        statusCode: status,
+        message: errorMessage.substring(0, 200),
+      });
+      
+      // Continue with next store (don't block entire automation)
     }
   }
 }
@@ -840,50 +868,108 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 
   if (store === 'shopee') {
     // Use real Shopee API
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-      console.log('📞 Chamando função search-shopee-offers...');
-      console.log('Parâmetros:', {
-        userId: automation.user_id,
+    const requestBody = {
+      userId: automation.user_id,
+      searchParams: {
+        keyword: automation.categories[0] || '',
         categories: automation.categories,
-        minPrice: automation.min_price,
-        maxPrice: automation.max_price,
-        minDiscount: automation.min_discount,
+        minPrice: automation.min_price || undefined,
+        maxPrice: automation.max_price || undefined,
+        minDiscount: automation.min_discount || undefined,
         sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
+        limit: 20,
+      },
+    };
+
+    console.log('📞 Chamando função search-shopee-offers...');
+    console.log('📋 Request Body:', JSON.stringify(requestBody, null, 2));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
+        body: requestBody,
       });
 
-      const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
-        body: {
-          userId: automation.user_id,
-          searchParams: {
-            keyword: automation.categories[0] || '',
-            categories: automation.categories,
-            minPrice: automation.min_price || undefined,
-            maxPrice: automation.max_price || undefined,
-            minDiscount: automation.min_discount || undefined,
-            sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
-            limit: 20,
-          },
-        },
-      });
+      // Log response details
+      console.log('📡 Resposta recebida da API Shopee');
+      console.log('📊 Response Data:', JSON.stringify({
+        success: data?.success,
+        offersCount: data?.offers?.length || 0,
+        hasError: !!error,
+      }, null, 2));
 
       if (error) {
-        console.error('❌ Erro ao buscar ofertas Shopee:', error);
-        throw new Error(`Erro ao buscar ofertas Shopee: ${error.message || JSON.stringify(error)}`);
+        // Detailed error classification
+        let errorType = 'UNKNOWN_ERROR';
+        let errorDetail = '';
+
+        // Check if it's a FunctionsHttpError (non-2xx response)
+        if (error.name === 'FunctionsHttpError' && error.context) {
+          const status = error.context.status;
+          errorType = status >= 500 ? 'STORE_API_ERROR' : 
+                      status === 401 || status === 403 ? 'AUTH_ERROR' : 
+                      status === 400 ? 'MALFORMED_REQUEST' : 'STORE_API_ERROR';
+          
+          console.error('🚨 Erro HTTP da API de busca:', {
+            errorType,
+            status: error.context.status,
+            statusText: error.context.statusText,
+            url: error.context.url,
+          });
+
+          // Try to get response body
+          try {
+            const errorBody = await error.context.text();
+            console.error('📄 Response Body:', errorBody);
+            errorDetail = `HTTP ${status}: ${errorBody.substring(0, 500)}`;
+          } catch (e) {
+            errorDetail = `HTTP ${status}: ${error.context.statusText}`;
+          }
+        } else {
+          // Other types of errors (network, timeout, etc.)
+          errorType = 'NETWORK_ERROR';
+          errorDetail = error.message || JSON.stringify(error);
+          console.error('🚨 Erro de rede/sistema:', {
+            errorType,
+            name: error.name,
+            message: error.message,
+          });
+        }
+
+        // Throw detailed error
+        const detailedError = new Error(`[${errorType}] ${errorDetail}`);
+        (detailedError as any).type = errorType;
+        (detailedError as any).status = error.context?.status;
+        (detailedError as any).originalError = error;
+        throw detailedError;
       }
 
-      console.log('✅ Resposta da API:', { 
-        success: data?.success, 
-        total: data?.offers?.length || 0 
-      });
+      // Validate response structure
+      if (!data || !data.offers) {
+        console.warn('⚠️ Resposta da API não contém ofertas válidas');
+        return [];
+      }
 
-      return data?.offers || [];
+      console.log(`✅ ${data.offers.length} oferta(s) encontrada(s)`);
+      return data.offers;
+
     } catch (error) {
-      console.error('❌ Erro ao chamar API Shopee:', error);
-      throw error; // Re-throw to be caught by the main error handler
+      console.error('❌ Exceção ao chamar API Shopee:', error);
+      
+      // Re-throw with context preserved
+      if ((error as any).type) {
+        // Already a detailed error from above
+        throw error;
+      }
+      
+      // Wrap unexpected errors
+      const wrappedError = new Error(`SEARCH_EXCEPTION: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      (wrappedError as any).type = 'SEARCH_EXCEPTION';
+      (wrappedError as any).originalError = error;
+      throw wrappedError;
     }
   }
 

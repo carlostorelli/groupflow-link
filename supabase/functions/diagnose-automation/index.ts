@@ -363,14 +363,58 @@ ${testOffer.discount ? `💥 ${testOffer.discount}% OFF` : ''}
 
     } catch (error) {
       console.error('Erro na busca:', error);
+      
+      // Extract detailed error information
+      let errorType = 'BUSCA_ERROR';
+      let errorDetail = error instanceof Error ? error.message : 'Erro desconhecido';
+      let statusCode = null;
+
+      // Check for FunctionsHttpError (non-2xx response from edge function)
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'FunctionsHttpError' && 'context' in error && error.context) {
+        const ctx = error.context as any;
+        statusCode = ctx.status;
+        
+        // Classify error based on status code
+        if (statusCode >= 500) {
+          errorType = 'STORE_API_ERROR';
+          errorDetail = `API da loja retornou erro ${statusCode}. Possível problema com a API externa (Shopee/etc)`;
+        } else if (statusCode === 401 || statusCode === 403) {
+          errorType = 'AUTH_ERROR';
+          errorDetail = `Erro de autenticação (${statusCode}). Verifique se suas credenciais de afiliado estão corretas e ativas`;
+        } else if (statusCode === 400) {
+          errorType = 'MALFORMED_REQUEST';
+          errorDetail = `Requisição inválida (${statusCode}). Verifique os filtros e categorias configuradas`;
+        } else {
+          errorDetail = `Erro HTTP ${statusCode}: ${ctx.statusText || 'Erro na requisição'}`;
+        }
+
+        console.error('🔍 Detalhes do erro:', {
+          type: errorType,
+          status: statusCode,
+          url: ctx.url,
+        });
+      }
+
       steps.push({
         step: 'BUSCA_STORE',
-        code: 'BUSCA_ERROR',
+        code: errorType,
         ok: false,
-        detail: error instanceof Error ? error.message : 'Erro desconhecido'
+        detail: `${errorDetail}${statusCode ? ` [HTTP ${statusCode}]` : ''}`
       });
-      finalCode = 'BUSCA_ERROR';
-      finalMsg = 'Erro ao buscar ofertas';
+      
+      finalCode = errorType;
+      finalMsg = errorDetail;
+      
+      await supabase.from('dispatch_logs').insert({
+        user_id: automation.user_id,
+        automation_id: automationId,
+        automation_name: automation.name,
+        store: 'shopee',
+        group_id: 'diagnostic',
+        product_url: 'https://diagnostic.log',
+        status: 'error',
+        error: `${errorType}: ${errorDetail}`
+      });
     }
 
     console.log('✅ Diagnóstico concluído');
