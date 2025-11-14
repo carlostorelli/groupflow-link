@@ -292,6 +292,11 @@ async function processSearchMode(supabase: any, automation: Automation) {
     } catch (error) {
       console.error(`❌ Erro ao processar loja ${cred.store}:`, error);
       
+      // Log full stack trace
+      if (error instanceof Error) {
+        console.error('📛 Error stack:', error.stack);
+      }
+      
       // Extract error details
       const errorType = (error as any).type || 'UNKNOWN_ERROR';
       const status = (error as any).status;
@@ -317,6 +322,7 @@ async function processSearchMode(supabase: any, automation: Automation) {
         errorType,
         statusCode: status,
         message: errorMessage.substring(0, 200),
+        fullError: JSON.stringify((error as any).originalError || error, Object.getOwnPropertyNames(error), 2),
       });
       
       // Continue with next store (don't block entire automation)
@@ -887,6 +893,7 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 
     console.log('📞 Chamando função search-shopee-offers...');
     console.log('📋 Request Body:', JSON.stringify(requestBody, null, 2));
+    console.log('⏰ Timestamp:', new Date().toISOString());
 
     try {
       const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
@@ -899,16 +906,23 @@ async function searchDeals(store: string, credentials: any, automation: Automati
         success: data?.success,
         offersCount: data?.offers?.length || 0,
         hasError: !!error,
+        errorName: error?.name,
+        errorMessage: error?.message,
       }, null, 2));
 
       if (error) {
+        // Log full error object for debugging
+        console.error('🚨 [FULL ERROR OBJECT]:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        
         // Detailed error classification
         let errorType = 'UNKNOWN_ERROR';
         let errorDetail = '';
+        let statusCode: number | undefined;
 
         // Check if it's a FunctionsHttpError (non-2xx response)
         if (error.name === 'FunctionsHttpError' && error.context) {
-          const status = error.context.status;
+          statusCode = error.context.status;
+          const status = statusCode || 500; // Fallback to 500 if undefined
           errorType = status >= 500 ? 'STORE_API_ERROR' : 
                       status === 401 || status === 403 ? 'AUTH_ERROR' : 
                       status === 400 ? 'MALFORMED_REQUEST' : 'STORE_API_ERROR';
@@ -922,11 +936,17 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 
           // Try to get response body
           try {
-            const errorBody = await error.context.text();
-            console.error('📄 Response Body:', errorBody);
-            errorDetail = `HTTP ${status}: ${errorBody.substring(0, 500)}`;
+            const errorBody = await error.context.json();
+            console.error('📄 Response Body (JSON):', JSON.stringify(errorBody, null, 2));
+            errorDetail = `HTTP ${status}: ${JSON.stringify(errorBody)}`;
           } catch (e) {
-            errorDetail = `HTTP ${status}: ${error.context.statusText}`;
+            try {
+              const errorText = await error.context.text();
+              console.error('📄 Response Body (Text):', errorText);
+              errorDetail = `HTTP ${status}: ${errorText.substring(0, 500)}`;
+            } catch (e2) {
+              errorDetail = `HTTP ${status}: ${error.context.statusText}`;
+            }
           }
         } else {
           // Other types of errors (network, timeout, etc.)
@@ -936,13 +956,14 @@ async function searchDeals(store: string, credentials: any, automation: Automati
             errorType,
             name: error.name,
             message: error.message,
+            stack: error.stack,
           });
         }
 
         // Throw detailed error
         const detailedError = new Error(`[${errorType}] ${errorDetail}`);
         (detailedError as any).type = errorType;
-        (detailedError as any).status = error.context?.status;
+        (detailedError as any).status = statusCode;
         (detailedError as any).originalError = error;
         throw detailedError;
       }
