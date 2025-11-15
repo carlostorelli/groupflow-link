@@ -117,6 +117,3 @@ verify_jwt = false
 
 [functions.suggest-offer-text]
 verify_jwt = true
-
-[functions.generate-offer-post-image]
-verify_jwt = false

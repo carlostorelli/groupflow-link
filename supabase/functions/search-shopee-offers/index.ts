@@ -114,6 +114,8 @@ async function searchShopeeProducts(
           productName
           productLink
           offerLink
+          discount
+          priceBeforeDiscount
         }
         pageInfo {
           page
@@ -126,7 +128,7 @@ async function searchShopeeProducts(
 
   // Map sortBy to Shopee sortType
   // 1 = Relevance, 2 = Item Sold, 3 = Price High, 4 = Price Low, 5 = Commission High
-  let sortType = 5; // Default to highest commission
+  let sortType = 4; // Default to Price Low (produtos mais baratos com descontos)
   if (searchParams.sortBy === 'price_low') sortType = 4;
   else if (searchParams.sortBy === 'price_high') sortType = 3;
   else if (searchParams.sortBy === 'sales') sortType = 2;
@@ -285,6 +287,14 @@ async function searchShopeeProducts(
     console.log(`🔍 Filtrados ${filteredProducts.length} produtos por palavra-chave`);
   }
 
+  // Apply default max price to avoid very expensive products
+  const effectiveMaxPrice = searchParams.maxPrice || 150; // Max R$ 150 por padrão
+  filteredProducts = filteredProducts.filter((p: any) => {
+    const price = parseFloat(p.price) || 0;
+    return price <= effectiveMaxPrice && price > 0; // Evita preços muito altos e produtos grátis/suspeitos
+  });
+  console.log(`📊 Pool após filtro de preço máximo (R$ ${effectiveMaxPrice}): ${filteredProducts.length} produtos`);
+
   if (searchParams.minPrice) {
     filteredProducts = filteredProducts.filter((p: any) => 
       parseFloat(p.price) >= searchParams.minPrice!
@@ -292,21 +302,24 @@ async function searchShopeeProducts(
     console.log(`📊 Pool após filtro de preço mínimo: ${filteredProducts.length} produtos`);
   }
 
-  if (searchParams.maxPrice) {
-    filteredProducts = filteredProducts.filter((p: any) => 
-      parseFloat(p.price) <= searchParams.maxPrice!
-    );
-    console.log(`📊 Pool após filtro de preço máximo: ${filteredProducts.length} produtos`);
-  }
-
-  if (searchParams.minDiscount) {
-    filteredProducts = filteredProducts.filter((p: any) => {
-      // Calculate discount percentage from commission
-      const commission = parseFloat(p.commission) || 0;
-      return commission >= searchParams.minDiscount!;
-    });
-    console.log(`📊 Pool após filtro de desconto: ${filteredProducts.length} produtos`);
-  }
+  // Calculate real discount percentage and filter
+  const effectiveMinDiscount = searchParams.minDiscount || 30; // Min 30% de desconto por padrão
+  filteredProducts = filteredProducts.filter((p: any) => {
+    const price = parseFloat(p.price) || 0;
+    const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
+    const apiDiscount = parseFloat(p.discount) || 0;
+    
+    // Calculate discount percentage
+    let discountPercent = 0;
+    if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
+      discountPercent = ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
+    } else if (apiDiscount > 0) {
+      discountPercent = apiDiscount;
+    }
+    
+    return discountPercent >= effectiveMinDiscount;
+  });
+  console.log(`📊 Pool após filtro de desconto mínimo (${effectiveMinDiscount}%): ${filteredProducts.length} produtos`);
   
   // SHUFFLE products to increase variety
   filteredProducts = filteredProducts.sort(() => Math.random() - 0.5);
@@ -327,29 +340,53 @@ async function searchShopeeProducts(
     });
   }
 
-  // Sort products
-  if (searchParams.sortBy) {
-    filteredProducts.sort((a: any, b: any) => {
-      switch (searchParams.sortBy) {
-        case 'commission':
-          return parseFloat(b.commissionRate) - parseFloat(a.commissionRate);
-        case 'price_low':
-          return parseFloat(a.price) - parseFloat(b.price);
-        case 'price_high':
-          return parseFloat(b.price) - parseFloat(a.price);
-        case 'sales':
-          return (b.sales || 0) - (a.sales || 0);
-        default:
-          return 0;
+  // Sort products - DEFAULT: sort by highest discount percentage
+  filteredProducts.sort((a: any, b: any) => {
+    const sortBy = searchParams.sortBy || 'discount'; // Default to discount
+    
+    switch (sortBy) {
+      case 'commission':
+        return parseFloat(b.commissionRate) - parseFloat(a.commissionRate);
+      case 'price_low':
+        return parseFloat(a.price) - parseFloat(b.price);
+      case 'price_high':
+        return parseFloat(b.price) - parseFloat(a.price);
+      case 'sales':
+        return (b.sales || 0) - (a.sales || 0);
+      case 'discount':
+      default: {
+        // Calculate discount percentage for both products
+        const calcDiscount = (p: any) => {
+          const price = parseFloat(p.price) || 0;
+          const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
+          const apiDiscount = parseFloat(p.discount) || 0;
+          
+          if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
+            return ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
+          }
+          return apiDiscount;
+        };
+        
+        return calcDiscount(b) - calcDiscount(a); // Highest discount first
       }
-    });
-  }
+    }
+  });
 
   // Transform to our format with robust fallbacks
   return filteredProducts.map((product: any) => {
     const price = parseFloat(product.price) || 0;
     const commission = parseFloat(product.commission) || 0;
     const commissionRate = parseFloat(product.commissionRate) || 0;
+    const priceBeforeDiscount = parseFloat(product.priceBeforeDiscount) || 0;
+    const apiDiscount = parseFloat(product.discount) || 0;
+    
+    // Calculate real discount percentage
+    let discountPercent = 0;
+    if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
+      discountPercent = Math.round(((priceBeforeDiscount - price) / priceBeforeDiscount) * 100);
+    } else if (apiDiscount > 0) {
+      discountPercent = Math.round(apiDiscount);
+    }
     
     // ALWAYS prioritize offerLink (short affiliate link)
     // productLink is only used as fallback for image extraction
@@ -360,8 +397,8 @@ async function searchShopeeProducts(
       id: affiliateLink || fullProductLink || String(Date.now()),
       title: product.productName || 'Produto',
       price,
-      old_price: null,
-      discount: commission > 0 ? Math.round(commission) : null,
+      old_price: priceBeforeDiscount > 0 ? priceBeforeDiscount : null,
+      discount: discountPercent > 0 ? discountPercent : null,
       image_url: extractImageFromUrl(fullProductLink || affiliateLink),
       product_url: affiliateLink || fullProductLink, // Will be converted to short link later if needed
       category: searchParams.categories?.[0] || 'geral',
