@@ -82,25 +82,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('💥 Erro ao buscar ofertas:', error);
-    
-    // Log full error details
-    if (error instanceof Error) {
-      console.error('📛 Error name:', error.name);
-      console.error('📛 Error message:', error.message);
-      console.error('📛 Error stack:', error.stack);
-    } else {
-      console.error('📛 Error object:', JSON.stringify(error, null, 2));
-    }
-    
     const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar ofertas';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
     return new Response(
-      JSON.stringify({ 
-        error: errorMessage,
-        stack: errorStack,
-        timestamp: new Date().toISOString()
-      }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -115,7 +99,6 @@ async function searchShopeeProducts(
   
   // Build GraphQL query for product offers using productOfferV2
   // Based on working examples - only use fields that exist in the API
-  // NOTE: Fields 'discount' and 'priceBeforeDiscount' removed as they don't exist in ProductOfferV2
   const query = `
     query ProductOfferQuery($page: Int, $limit: Int, $listType: Int, $sortType: Int) {
       productOfferV2(
@@ -143,7 +126,7 @@ async function searchShopeeProducts(
 
   // Map sortBy to Shopee sortType
   // 1 = Relevance, 2 = Item Sold, 3 = Price High, 4 = Price Low, 5 = Commission High
-  let sortType = 4; // Default to Price Low (produtos mais baratos com descontos)
+  let sortType = 5; // Default to highest commission
   if (searchParams.sortBy === 'price_low') sortType = 4;
   else if (searchParams.sortBy === 'price_high') sortType = 3;
   else if (searchParams.sortBy === 'sales') sortType = 2;
@@ -175,12 +158,6 @@ async function searchShopeeProducts(
     const timestamp = Math.floor(Date.now() / 1000);
     const signatureString = `${appId}${timestamp}${payload}${password}`;
     
-    console.log(`🔐 [DEBUG] Gerando assinatura para página ${page}`);
-    console.log(`  - appId: ${appId}`);
-    console.log(`  - timestamp: ${timestamp}`);
-    console.log(`  - payload length: ${payload.length} chars`);
-    console.log(`  - payload preview: ${payload.substring(0, 100)}...`);
-    
     // Calculate SHA256 hash
     const encoder = new TextEncoder();
     const data = encoder.encode(signatureString);
@@ -189,13 +166,8 @@ async function searchShopeeProducts(
     const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     const authHeader = `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
-    
-    console.log(`  - signature: ${signature.substring(0, 20)}...`);
-    console.log(`  - auth header: ${authHeader.substring(0, 80)}...`);
 
     console.log(`📡 Fazendo requisição para Shopee API (página ${page})...`);
-    console.log(`  - endpoint: ${endpoint}`);
-    console.log(`  - method: POST`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -206,27 +178,11 @@ async function searchShopeeProducts(
       body: payload,
     });
 
-    console.log(`📥 Resposta recebida da Shopee API (página ${page})`);
-    console.log(`  - status: ${response.status} ${response.statusText}`);
-    console.log(`  - headers:`, Object.fromEntries(response.headers.entries()));
-
     const responseData = await response.json();
-    
-    console.log(`📋 Response body preview:`, JSON.stringify(responseData).substring(0, 200));
-
-    if (!response.ok) {
-      console.error(`❌ HTTP ${response.status} - Resposta completa:`, JSON.stringify(responseData, null, 2));
-      throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseData)}`);
-    }
 
     if (responseData.errors) {
-      console.error('❌ Erros GraphQL na API Shopee:', JSON.stringify(responseData.errors, null, 2));
-      const errorDetails = responseData.errors.map((e: any) => ({
-        message: e.message,
-        code: e.extensions?.code,
-        locations: e.locations,
-      }));
-      throw new Error(`Erro GraphQL Shopee: ${JSON.stringify(errorDetails)}`);
+      console.error('❌ Erros na API Shopee:', responseData.errors);
+      throw new Error(`Erro na API Shopee: ${responseData.errors[0]?.message || 'Erro desconhecido'}`);
     }
 
     if (!responseData.data?.productOfferV2?.nodes) {
@@ -329,15 +285,6 @@ async function searchShopeeProducts(
     console.log(`🔍 Filtrados ${filteredProducts.length} produtos por palavra-chave`);
   }
 
-  // Apply max price filter only if explicitly set
-  if (searchParams.maxPrice !== undefined && searchParams.maxPrice !== null) {
-    filteredProducts = filteredProducts.filter((p: any) => {
-      const price = parseFloat(p.price) || 0;
-      return price <= searchParams.maxPrice! && price > 0;
-    });
-    console.log(`📊 Pool após filtro de preço máximo (R$ ${searchParams.maxPrice}): ${filteredProducts.length} produtos`);
-  }
-
   if (searchParams.minPrice) {
     filteredProducts = filteredProducts.filter((p: any) => 
       parseFloat(p.price) >= searchParams.minPrice!
@@ -345,24 +292,20 @@ async function searchShopeeProducts(
     console.log(`📊 Pool após filtro de preço mínimo: ${filteredProducts.length} produtos`);
   }
 
-  // Calculate real discount percentage and filter (only if minDiscount is explicitly set)
-  if (searchParams.minDiscount !== undefined && searchParams.minDiscount !== null) {
+  if (searchParams.maxPrice) {
+    filteredProducts = filteredProducts.filter((p: any) => 
+      parseFloat(p.price) <= searchParams.maxPrice!
+    );
+    console.log(`📊 Pool após filtro de preço máximo: ${filteredProducts.length} produtos`);
+  }
+
+  if (searchParams.minDiscount) {
     filteredProducts = filteredProducts.filter((p: any) => {
-      const price = parseFloat(p.price) || 0;
-      const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
-      const apiDiscount = parseFloat(p.discount) || 0;
-      
-      // Calculate discount percentage
-      let discountPercent = 0;
-      if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
-        discountPercent = ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
-      } else if (apiDiscount > 0) {
-        discountPercent = apiDiscount;
-      }
-      
-      return discountPercent >= searchParams.minDiscount!;
+      // Calculate discount percentage from commission
+      const commission = parseFloat(p.commission) || 0;
+      return commission >= searchParams.minDiscount!;
     });
-    console.log(`📊 Pool após filtro de desconto mínimo (${searchParams.minDiscount}%): ${filteredProducts.length} produtos`);
+    console.log(`📊 Pool após filtro de desconto: ${filteredProducts.length} produtos`);
   }
   
   // SHUFFLE products to increase variety
@@ -384,53 +327,29 @@ async function searchShopeeProducts(
     });
   }
 
-  // Sort products - DEFAULT: sort by highest discount percentage
-  filteredProducts.sort((a: any, b: any) => {
-    const sortBy = searchParams.sortBy || 'discount'; // Default to discount
-    
-    switch (sortBy) {
-      case 'commission':
-        return parseFloat(b.commissionRate) - parseFloat(a.commissionRate);
-      case 'price_low':
-        return parseFloat(a.price) - parseFloat(b.price);
-      case 'price_high':
-        return parseFloat(b.price) - parseFloat(a.price);
-      case 'sales':
-        return (b.sales || 0) - (a.sales || 0);
-      case 'discount':
-      default: {
-        // Calculate discount percentage for both products
-        const calcDiscount = (p: any) => {
-          const price = parseFloat(p.price) || 0;
-          const priceBeforeDiscount = parseFloat(p.priceBeforeDiscount) || 0;
-          const apiDiscount = parseFloat(p.discount) || 0;
-          
-          if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
-            return ((priceBeforeDiscount - price) / priceBeforeDiscount) * 100;
-          }
-          return apiDiscount;
-        };
-        
-        return calcDiscount(b) - calcDiscount(a); // Highest discount first
+  // Sort products
+  if (searchParams.sortBy) {
+    filteredProducts.sort((a: any, b: any) => {
+      switch (searchParams.sortBy) {
+        case 'commission':
+          return parseFloat(b.commissionRate) - parseFloat(a.commissionRate);
+        case 'price_low':
+          return parseFloat(a.price) - parseFloat(b.price);
+        case 'price_high':
+          return parseFloat(b.price) - parseFloat(a.price);
+        case 'sales':
+          return (b.sales || 0) - (a.sales || 0);
+        default:
+          return 0;
       }
-    }
-  });
+    });
+  }
 
   // Transform to our format with robust fallbacks
   return filteredProducts.map((product: any) => {
     const price = parseFloat(product.price) || 0;
     const commission = parseFloat(product.commission) || 0;
     const commissionRate = parseFloat(product.commissionRate) || 0;
-    const priceBeforeDiscount = parseFloat(product.priceBeforeDiscount) || 0;
-    const apiDiscount = parseFloat(product.discount) || 0;
-    
-    // Calculate real discount percentage
-    let discountPercent = 0;
-    if (priceBeforeDiscount > price && priceBeforeDiscount > 0) {
-      discountPercent = Math.round(((priceBeforeDiscount - price) / priceBeforeDiscount) * 100);
-    } else if (apiDiscount > 0) {
-      discountPercent = Math.round(apiDiscount);
-    }
     
     // ALWAYS prioritize offerLink (short affiliate link)
     // productLink is only used as fallback for image extraction
@@ -441,8 +360,8 @@ async function searchShopeeProducts(
       id: affiliateLink || fullProductLink || String(Date.now()),
       title: product.productName || 'Produto',
       price,
-      old_price: priceBeforeDiscount > 0 ? priceBeforeDiscount : null,
-      discount: discountPercent > 0 ? discountPercent : null,
+      old_price: null,
+      discount: commission > 0 ? Math.round(commission) : null,
       image_url: extractImageFromUrl(fullProductLink || affiliateLink),
       product_url: affiliateLink || fullProductLink, // Will be converted to short link later if needed
       category: searchParams.categories?.[0] || 'geral',

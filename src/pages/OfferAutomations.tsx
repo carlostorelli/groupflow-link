@@ -93,7 +93,6 @@ export default function OfferAutomations() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [suggestingText, setSuggestingText] = useState(false);
-  const [creatingDebug, setCreatingDebug] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Automation>>({
@@ -431,63 +430,6 @@ export default function OfferAutomations() {
     }
   };
 
-  const createDebugAutomation = async () => {
-    if (!user) return;
-    
-    if (groups.length === 0) {
-      toast({
-        title: "Nenhum grupo disponível",
-        description: "Sincronize seus grupos primeiro",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setCreatingDebug(true);
-    try {
-      const randomGroup = groups[Math.floor(Math.random() * groups.length)];
-      
-      const debugAutomation = {
-        name: "Debug Shopee Full",
-        mode: "search" as AutomationMode,
-        start_time: "00:01",
-        end_time: "23:59",
-        interval_minutes: 5,
-        send_groups: [randomGroup.wa_group_id],
-        stores: ["shopee"] as StoreKey[],
-        categories: [],
-        priority: "discount" as PriorityType,
-        filter_type: "light" as FilterType,
-        texts: ["🔍 Debug Shopee\n📦 {title}\n💰 R$ {price}\n🔗 {affiliate_url}"],
-        ctas: [],
-        status: "active" as AutomationStatus,
-        user_id: user.id,
-      };
-
-      const { error } = await supabase
-        .from("automations")
-        .insert(debugAutomation);
-
-      if (error) throw error;
-
-      toast({
-        title: "Automação de debug criada",
-        description: `Testando Shopee sem filtros no grupo: ${randomGroup.name}`,
-      });
-
-      loadAutomations();
-    } catch (error: any) {
-      console.error('Error creating debug automation:', error);
-      toast({
-        title: "Erro ao criar automação",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingDebug(false);
-    }
-  };
-
   const addText = () => {
     if ((formData.texts?.length || 0) < 3) {
       setFormData({ ...formData, texts: [...(formData.texts || []), ""] });
@@ -550,24 +492,14 @@ export default function OfferAutomations() {
           <h1 className="text-3xl font-bold">Divulgações de IA</h1>
           <p className="text-muted-foreground">Busca e monitoramento de promoções com IA</p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={createDebugAutomation}
-            disabled={creatingDebug || groups.length === 0}
-            variant="outline"
-            size="sm"
-          >
-            <Star className="h-4 w-4 mr-2" />
-            {creatingDebug ? "Criando..." : "Debug Shopee"}
-          </Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Automação
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={resetForm}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Automação
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Editar" : "Nova"} Automação</DialogTitle>
             </DialogHeader>
@@ -919,7 +851,6 @@ export default function OfferAutomations() {
             </div>
           </DialogContent>
         </Dialog>
-        </div>
       </div>
 
       {!whatsappConnected && (

@@ -291,41 +291,7 @@ async function processSearchMode(supabase: any, automation: Automation) {
 
     } catch (error) {
       console.error(`❌ Erro ao processar loja ${cred.store}:`, error);
-      
-      // Log full stack trace
-      if (error instanceof Error) {
-        console.error('📛 Error stack:', error.stack);
-      }
-      
-      // Extract error details
-      const errorType = (error as any).type || 'UNKNOWN_ERROR';
-      const status = (error as any).status;
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      
-      // Create detailed error log
-      const detailedErrorMsg = `Erro na busca da loja ${cred.store}: ${errorMessage}`;
-      
-      // Log error to dispatch_logs with classification
-      await supabase.from('dispatch_logs').insert({
-        user_id: automation.user_id,
-        automation_id: automation.id,
-        automation_name: automation.name || 'Automação',
-        store: cred.store,
-        group_id: 'system',
-        product_url: 'https://search-error.log',
-        status: 'error',
-        error: detailedErrorMsg,
-      });
-
-      console.error('📊 Erro classificado:', {
-        store: cred.store,
-        errorType,
-        statusCode: status,
-        message: errorMessage.substring(0, 200),
-        fullError: JSON.stringify((error as any).originalError || error, Object.getOwnPropertyNames(error), 2),
-      });
-      
-      // Continue with next store (don't block entire automation)
+      // Continue with next store
     }
   }
 }
@@ -464,23 +430,14 @@ async function processMonitorMode(supabase: any, automation: Automation) {
 
       console.log(`🔍 Buscando mensagens com JID validado: ${groupId}`);
 
-      // Use the correct Evolution API endpoint for fetching messages
+      // Try the simpler fetchMessages endpoint first
       const messagesResponse = await fetch(
-        `${evolutionUrl}/chat/findMessages/${encodedInstanceId}`,
+        `${evolutionUrl}/chat/fetchMessages/${encodedInstanceId}?remoteJid=${encodeURIComponent(groupId)}&limit=100`,
         {
-          method: 'POST',
+          method: 'GET',
           headers: {
             'apikey': evolutionKey,
-            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            where: {
-              key: {
-                remoteJid: groupId
-              }
-            },
-            limit: 100
-          })
         }
       );
 
@@ -489,32 +446,15 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       if (!messagesResponse.ok) {
         const errorText = await messagesResponse.text();
         console.error(`❌ Erro ao buscar mensagens do grupo ${groupId}: ${messagesResponse.status} - ${errorText}`);
-        await supabase.from('dispatch_logs').insert({
-          user_id: automation.user_id,
-          automation_id: automation.id,
-          automation_name: automation.name || 'Automação',
-          store: automation.stores[0] || 'shopee',
-          group_id: groupId,
-          product_url: 'https://error.log',
-          status: 'error',
-          error: `Falha ao buscar mensagens: HTTP ${messagesResponse.status}`,
-        });
         continue;
       }
 
       const messagesData = await messagesResponse.json();
       console.log(`📦 Tipo de resposta:`, typeof messagesData, Array.isArray(messagesData) ? 'Array' : 'Object');
+      console.log(`📦 Estrutura da resposta:`, JSON.stringify(messagesData).substring(0, 500));
       
-      // Evolution API returns data in different formats
-      const messages = Array.isArray(messagesData) 
-        ? messagesData 
-        : (messagesData.data || messagesData.messages || []);
-      
+      const messages = Array.isArray(messagesData) ? messagesData : (messagesData.messages || []);
       console.log(`📨 Encontradas ${messages.length || 0} mensagens no grupo`);
-      
-      if (messages.length > 0) {
-        console.log(`📋 Exemplo de mensagem (estrutura):`, JSON.stringify(messages[0], null, 2).substring(0, 500));
-      }
       
       if (messages.length === 0) {
         console.warn(`⚠️ Nenhuma mensagem encontrada no grupo ${groupId}. Isso pode significar:`);
@@ -527,17 +467,14 @@ async function processMonitorMode(supabase: any, automation: Automation) {
       if (messages && Array.isArray(messages)) {
         console.log(`📝 Processando ${messages.length} mensagens...`);
         
-        // Log sample messages for debugging
+        // Log first 3 messages for debugging
         if (messages.length > 0) {
-          console.log(`📋 Exemplo de mensagens:`, 
-            messages.slice(0, 3).map((m: any) => ({
-              from: m.key?.participant || m.key?.remoteJid || m.sender,
-              text: (m.message?.conversation || 
-                     m.message?.extendedTextMessage?.text || 
-                     m.body || 
-                     'sem texto').substring(0, 100),
-              timestamp: m.messageTimestamp || m.timestamp
-            }))
+          console.log(`📋 Primeiras 3 mensagens (para debug):`, 
+            JSON.stringify(messages.slice(0, 3).map(m => ({
+              from: m.key?.participant || m.key?.remoteJid,
+              fromMe: m.key?.fromMe,
+              text: m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '[sem texto]'
+            })), null, 2)
           );
         }
         
@@ -553,15 +490,13 @@ async function processMonitorMode(supabase: any, automation: Automation) {
               continue;
             }
 
-            // Extract text from different message structures
+            // Extract text from message
             const text = msg.message?.conversation || 
-                        msg.message?.extendedTextMessage?.text ||
-                        msg.message?.imageMessage?.caption ||
-                        msg.message?.videoMessage?.caption ||
-                        msg.body || 
-                        '';
+                        msg.message?.extendedTextMessage?.text || 
+                        msg.message?.imageMessage?.caption || '';
             
-            if (!text || text.trim() === '') {
+            if (!text) {
+              console.log(`⏭️ Mensagem sem texto`);
               continue;
             }
             
@@ -612,49 +547,18 @@ async function processMonitorMode(supabase: any, automation: Automation) {
             let affiliateUrl = productLink;
             
             if (store === 'shopee') {
-              try {
-                console.log(`🔗 Gerando link de afiliado para: ${productLink}`);
-                const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
-                  body: {
-                    productUrl: productLink,
-                    userId: automation.user_id,
-                  },
-                });
+              const affiliateLinkResponse = await supabase.functions.invoke('generate-shopee-affiliate-link', {
+                body: {
+                  productUrl: productLink,
+                  userId: automation.user_id,
+                },
+              });
 
-                if (affiliateLinkResponse.error) {
-                  console.error('❌ Erro ao invocar função de afiliado:', affiliateLinkResponse.error);
-                  await supabase.from('dispatch_logs').insert({
-                    user_id: automation.user_id,
-                    automation_id: automation.id,
-                    automation_name: automation.name || 'Automação',
-                    store,
-                    group_id: groupId,
-                    product_url: productLink,
-                    status: 'error',
-                    error: `Falha ao gerar link de afiliado: ${affiliateLinkResponse.error.message}`,
-                  });
-                  continue;
-                }
-
-                if (affiliateLinkResponse.data?.affiliateUrl) {
-                  affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
-                  console.log('✅ Link de afiliado gerado:', affiliateUrl);
-                } else {
-                  console.error('❌ Resposta sem URL de afiliado:', affiliateLinkResponse.data);
-                  continue;
-                }
-              } catch (error) {
-                console.error('❌ Exceção ao gerar link de afiliado:', error);
-                await supabase.from('dispatch_logs').insert({
-                  user_id: automation.user_id,
-                  automation_id: automation.id,
-                  automation_name: automation.name || 'Automação',
-                  store,
-                  group_id: groupId,
-                  product_url: productLink,
-                  status: 'error',
-                  error: `Erro ao gerar link: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-                });
+              if (affiliateLinkResponse.data?.affiliateUrl) {
+                affiliateUrl = affiliateLinkResponse.data.affiliateUrl;
+                console.log('✅ Link de afiliado gerado:', affiliateUrl);
+              } else {
+                console.error('❌ Falha ao gerar link de afiliado');
                 continue;
               }
             }
@@ -681,83 +585,76 @@ ${cta} ${affiliateUrl}`;
                   throw new Error(`JID inválido: ${targetGroupId}. Sincronize novamente os grupos.`);
                 }
 
-                console.log(`📨 [MONITOR] Enviando para grupo ${targetGroupId}...`);
+                console.log(`📨 Enviando para grupo ${targetGroupId}...`);
                 console.log(`📝 Mensagem: ${formattedMessage.substring(0, 100)}...`);
 
                 const sendPayload = {
                   number: targetGroupId,
                   text: formattedMessage,
                 };
+                console.log(`📦 Payload:`, JSON.stringify(sendPayload, null, 2));
 
-                try {
-                  const sendResponse = await fetch(
-                    `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': evolutionKey,
-                      },
-                      body: JSON.stringify(sendPayload),
-                    }
-                  );
-
-                  console.log(`📡 Status do envio: ${sendResponse.status}`);
-
-                  if (!sendResponse.ok) {
-                    const errorText = await sendResponse.text();
-                    console.error(`❌ Erro ao enviar mensagem: ${sendResponse.status} - ${errorText}`);
-                    
-                    await supabase.from('dispatch_logs').insert({
-                      user_id: automation.user_id,
-                      automation_id: automation.id,
-                      automation_name: automation.name || 'Automação',
-                      store,
-                      group_id: targetGroupId,
-                      product_url: productLink,
-                      affiliate_url: affiliateUrl,
-                      status: 'error',
-                      error: `Falha no envio: HTTP ${sendResponse.status}`,
-                    });
-                    continue;
+                const sendResponse = await fetch(
+                  `${evolutionUrl}/message/sendText/${encodedInstanceId}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': evolutionKey,
+                    },
+                    body: JSON.stringify(sendPayload),
                   }
+                );
 
-                  const sendResult = await sendResponse.json();
-                  console.log(`✅ [MONITOR] Mensagem enviada com sucesso:`, sendResult.key || sendResult);
+                console.log(`📡 Status do envio: ${sendResponse.status} ${sendResponse.statusText}`);
+                const responseText = await sendResponse.text();
+                console.log(`📄 Resposta bruta: ${responseText}`);
 
-                  // Log success
-                  await supabase.from('dispatch_logs').insert({
-                    user_id: automation.user_id,
-                    automation_id: automation.id,
-                    automation_name: automation.name || 'Automação',
-                    store,
-                    group_id: targetGroupId,
-                    product_url: productLink,
-                    affiliate_url: affiliateUrl,
-                    status: 'sent',
-                  });
-
-                  // Mark as processed
-                  sentUrls.add(productLink);
-
-                  // Anti-flood: wait 3 seconds between sends
-                  await delay(3000);
-                } catch (sendError) {
-                  console.error(`❌ Exceção ao enviar mensagem:`, sendError);
-                  await supabase.from('dispatch_logs').insert({
-                    user_id: automation.user_id,
-                    automation_id: automation.id,
-                    automation_name: automation.name || 'Automação',
-                    store,
-                    group_id: targetGroupId,
-                    product_url: productLink,
-                    affiliate_url: affiliateUrl,
-                    status: 'error',
-                    error: `Erro ao enviar: ${sendError instanceof Error ? sendError.message : 'Erro desconhecido'}`,
-                  });
+                if (!sendResponse.ok) {
+                  throw new Error(`Evolution API retornou ${sendResponse.status}: ${responseText}`);
                 }
+
+                let sendData;
+                try {
+                  sendData = JSON.parse(responseText);
+                } catch (e) {
+                  throw new Error(`Resposta JSON inválida: ${responseText}`);
+                }
+                
+                console.log(`✅ Resposta parseada:`, JSON.stringify(sendData, null, 2));
+
+                if (sendData.error) {
+                  throw new Error(`API Error: ${sendData.error}`);
+                }
+                
+                if (!sendData.key && !sendData.message) {
+                  throw new Error(`Resposta sem key/message: ${JSON.stringify(sendData)}`);
+                }
+
+                // Log successful dispatch
+                await supabase.from('dispatch_logs').insert({
+                  user_id: automation.user_id,
+                  automation_id: automation.id,
+                  automation_name: automation.name || 'Automação',
+                  store,
+                  group_id: targetGroupId,
+                  product_url: productLink,
+                  affiliate_url: affiliateUrl,
+                  status: 'sent',
+                });
+
+                console.log(`✅ Mensagem enviada com sucesso para ${targetGroupId}`);
+
+                // Mark as processed
+                sentUrls.add(productLink);
+
+                // Delay between messages
+                await delay(3000);
+
               } catch (error) {
-                console.error(`❌ Erro ao processar grupo de envio ${targetGroupId}:`, error);
+                console.error(`❌ Erro ao enviar para grupo ${targetGroupId}:`, error);
+                const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
                 await supabase.from('dispatch_logs').insert({
                   user_id: automation.user_id,
                   automation_id: automation.id,
@@ -767,37 +664,29 @@ ${cta} ${affiliateUrl}`;
                   product_url: productLink,
                   affiliate_url: affiliateUrl,
                   status: 'error',
-                  error: `Erro no envio para grupo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+                  error: errorMessage,
                 });
               }
             }
 
-            // Break after first product found (avoid sending too many)
-            console.log(`✅ [MONITOR] Link processado com sucesso, parando monitoramento deste grupo`);
-            break;
+            // Process only one link per cycle
+            console.log('✅ Link processado, finalizando ciclo');
+            return;
+
           } catch (error) {
-            console.error(`❌ Erro ao processar mensagem:`, error);
+            console.error('❌ Erro ao processar mensagem:', error);
             // Continue to next message
           }
         }
       }
 
     } catch (error) {
-      console.error(`❌ Erro crítico ao monitorar grupo ${groupId}:`, error);
-      await supabase.from('dispatch_logs').insert({
-        user_id: automation.user_id,
-        automation_id: automation.id,
-        automation_name: automation.name || 'Automação',
-        store: automation.stores[0] || 'shopee',
-        group_id: groupId,
-        product_url: 'https://error.log',
-        status: 'error',
-        error: `Erro no monitoramento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
-      });
+      console.error(`❌ Erro ao monitorar grupo ${groupId}:`, error);
+      // Continue to next group
     }
   }
 
-  console.log(`✅ [MONITOR] Monitoramento concluído para todos os grupos`);
+  console.log('✅ Monitoramento concluído, nenhum link novo encontrado');
 }
 
 function extractProductLinks(text: string): string[] {
@@ -874,123 +763,50 @@ async function searchDeals(store: string, credentials: any, automation: Automati
 
   if (store === 'shopee') {
     // Use real Shopee API
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const requestBody = {
-      userId: automation.user_id,
-      searchParams: {
-        keyword: automation.categories[0] || '',
-        categories: automation.categories,
-        minPrice: automation.min_price || undefined,
-        maxPrice: automation.max_price || undefined,
-        minDiscount: automation.min_discount || undefined,
-        sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
-        limit: 20,
-      },
-    };
-
-    console.log('📞 Chamando função search-shopee-offers...');
-    console.log('📋 Request Body:', JSON.stringify(requestBody, null, 2));
-    console.log('⏰ Timestamp:', new Date().toISOString());
-
     try {
-      const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
-        body: requestBody,
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      console.log('📞 Chamando função search-shopee-offers...');
+      console.log('Parâmetros:', {
+        userId: automation.user_id,
+        categories: automation.categories,
+        minPrice: automation.min_price,
+        maxPrice: automation.max_price,
+        minDiscount: automation.min_discount,
+        sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
       });
 
-      // Log response details
-      console.log('📡 Resposta recebida da API Shopee');
-      console.log('📊 Response Data:', JSON.stringify({
-        success: data?.success,
-        offersCount: data?.offers?.length || 0,
-        hasError: !!error,
-        errorName: error?.name,
-        errorMessage: error?.message,
-      }, null, 2));
+      const { data, error } = await supabase.functions.invoke('search-shopee-offers', {
+        body: {
+          userId: automation.user_id,
+          searchParams: {
+            keyword: automation.categories[0] || '',
+            categories: automation.categories,
+            minPrice: automation.min_price || undefined,
+            maxPrice: automation.max_price || undefined,
+            minDiscount: automation.min_discount || undefined,
+            sortBy: automation.priority === 'discount' ? 'commission' : 'price_low',
+            limit: 20,
+          },
+        },
+      });
 
       if (error) {
-        // Log full error object for debugging
-        console.error('🚨 [FULL ERROR OBJECT]:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-        
-        // Detailed error classification
-        let errorType = 'UNKNOWN_ERROR';
-        let errorDetail = '';
-        let statusCode: number | undefined;
-
-        // Check if it's a FunctionsHttpError (non-2xx response)
-        if (error.name === 'FunctionsHttpError' && error.context) {
-          statusCode = error.context.status;
-          const status = statusCode || 500; // Fallback to 500 if undefined
-          errorType = status >= 500 ? 'STORE_API_ERROR' : 
-                      status === 401 || status === 403 ? 'AUTH_ERROR' : 
-                      status === 400 ? 'MALFORMED_REQUEST' : 'STORE_API_ERROR';
-          
-          console.error('🚨 Erro HTTP da API de busca:', {
-            errorType,
-            status: error.context.status,
-            statusText: error.context.statusText,
-            url: error.context.url,
-          });
-
-          // Try to get response body
-          try {
-            const errorBody = await error.context.json();
-            console.error('📄 Response Body (JSON):', JSON.stringify(errorBody, null, 2));
-            errorDetail = `HTTP ${status}: ${JSON.stringify(errorBody)}`;
-          } catch (e) {
-            try {
-              const errorText = await error.context.text();
-              console.error('📄 Response Body (Text):', errorText);
-              errorDetail = `HTTP ${status}: ${errorText.substring(0, 500)}`;
-            } catch (e2) {
-              errorDetail = `HTTP ${status}: ${error.context.statusText}`;
-            }
-          }
-        } else {
-          // Other types of errors (network, timeout, etc.)
-          errorType = 'NETWORK_ERROR';
-          errorDetail = error.message || JSON.stringify(error);
-          console.error('🚨 Erro de rede/sistema:', {
-            errorType,
-            name: error.name,
-            message: error.message,
-            stack: error.stack,
-          });
-        }
-
-        // Throw detailed error
-        const detailedError = new Error(`[${errorType}] ${errorDetail}`);
-        (detailedError as any).type = errorType;
-        (detailedError as any).status = statusCode;
-        (detailedError as any).originalError = error;
-        throw detailedError;
+        console.error('❌ Erro ao buscar ofertas Shopee:', error);
+        throw new Error(`Erro ao buscar ofertas Shopee: ${error.message || JSON.stringify(error)}`);
       }
 
-      // Validate response structure
-      if (!data || !data.offers) {
-        console.warn('⚠️ Resposta da API não contém ofertas válidas');
-        return [];
-      }
+      console.log('✅ Resposta da API:', { 
+        success: data?.success, 
+        total: data?.offers?.length || 0 
+      });
 
-      console.log(`✅ ${data.offers.length} oferta(s) encontrada(s)`);
-      return data.offers;
-
+      return data?.offers || [];
     } catch (error) {
-      console.error('❌ Exceção ao chamar API Shopee:', error);
-      
-      // Re-throw with context preserved
-      if ((error as any).type) {
-        // Already a detailed error from above
-        throw error;
-      }
-      
-      // Wrap unexpected errors
-      const wrappedError = new Error(`SEARCH_EXCEPTION: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      (wrappedError as any).type = 'SEARCH_EXCEPTION';
-      (wrappedError as any).originalError = error;
-      throw wrappedError;
+      console.error('❌ Erro ao chamar API Shopee:', error);
+      throw error; // Re-throw to be caught by the main error handler
     }
   }
 

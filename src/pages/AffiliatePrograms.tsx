@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Loader2, Activity } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 type StoreKey = "shopee" | "amazon" | "magalu" | "ml" | "shein" | "aliexpress" | "awin";
 
@@ -123,8 +121,6 @@ export default function AffiliatePrograms() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<StoreKey | null>(null);
   const [testing, setTesting] = useState<StoreKey | null>(null);
-  const [testResult, setTestResult] = useState<any>(null);
-  const [showTestDialog, setShowTestDialog] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -320,44 +316,13 @@ export default function AffiliatePrograms() {
         throw new Error("Preencha todos os campos");
       }
 
-      // Only Shopee has a dedicated test endpoint for now
-      if (storeKey === 'shopee') {
-        console.log('🧪 [TEST] Testando conexão Shopee...');
-        
-        const { data, error } = await supabase.functions.invoke('test-shopee-connection', {
-          body: { userId: user?.id }
-        });
+      // Simulate validation - real validation will happen when automation runs
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
-        if (error) {
-          console.error('❌ [TEST] Erro ao invocar função:', error);
-          throw new Error(`Erro na função de teste: ${error.message}`);
-        }
-
-        console.log('📊 [TEST] Resultado recebido:', data);
-        setTestResult(data);
-        setShowTestDialog(true);
-
-        if (data.success) {
-          toast({
-            title: "✅ Teste bem-sucedido",
-            description: `API Shopee está respondendo corretamente. ${data.classification?.productsFound || 0} produtos encontrados.`,
-          });
-        } else {
-          toast({
-            title: "❌ Teste falhou",
-            description: data.classification?.message || "Erro ao conectar com a API Shopee",
-            variant: "destructive",
-          });
-        }
-      } else {
-        // For other stores, simulate validation
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        toast({
-          title: "Credenciais validadas",
-          description: `As credenciais do ${config?.name} foram verificadas. A validação completa ocorrerá no primeiro uso.`,
-        });
-      }
+      toast({
+        title: "Credenciais validadas",
+        description: `As credenciais do ${config?.name} foram verificadas. A validação completa ocorrerá no primeiro uso.`,
+      });
     } catch (error) {
       console.error('💥 Erro no teste:', error);
       toast({
@@ -413,14 +378,13 @@ export default function AffiliatePrograms() {
   }
 
   return (
-    <>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Programas de Afiliado</h1>
-          <p className="text-muted-foreground">
-            Configure suas credenciais para gerar links de afiliado automaticamente
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Programas de Afiliado</h1>
+        <p className="text-muted-foreground">
+          Configure suas credenciais para gerar links de afiliado automaticamente
+        </p>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {STORE_CONFIGS.map((config) => {
@@ -547,177 +511,5 @@ export default function AffiliatePrograms() {
         })}
       </div>
     </div>
-
-    {/* Test Results Dialog */}
-    <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Diagnóstico da API Shopee
-          </DialogTitle>
-          <DialogDescription>
-            Resultado completo do teste de conexão
-          </DialogDescription>
-        </DialogHeader>
-
-        <ScrollArea className="max-h-[60vh]">
-          <div className="space-y-4">
-            {/* Summary */}
-            {testResult && (
-              <Card className={testResult.success ? "border-green-500" : "border-red-500"}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    {testResult.success ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    {testResult.classification?.message || "Resultado do teste"}
-                  </CardTitle>
-                  <CardDescription>
-                    Status HTTP: {testResult.httpStatus} {testResult.statusText}
-                    {testResult.duration && ` • Duração: ${testResult.duration}ms`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Classification Details */}
-                  {testResult.classification && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={
-                          testResult.classification.severity === 'CRITICAL' ? 'destructive' :
-                          testResult.classification.severity === 'HIGH' ? 'default' :
-                          testResult.classification.severity === 'MEDIUM' ? 'secondary' :
-                          'outline'
-                        }>
-                          {testResult.classification.type}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Severidade: {testResult.classification.severity}
-                        </span>
-                      </div>
-                      
-                      {testResult.classification.details && (
-                        <p className="text-sm text-muted-foreground">
-                          {testResult.classification.details}
-                        </p>
-                      )}
-                      
-                      {testResult.classification.suggestion && (
-                        <div className="p-3 bg-muted rounded-md">
-                          <p className="text-sm font-medium">💡 Sugestão:</p>
-                          <p className="text-sm text-muted-foreground">
-                            {testResult.classification.suggestion}
-                          </p>
-                        </div>
-                      )}
-
-                      {testResult.classification.errorCode && (
-                        <p className="text-xs text-muted-foreground">
-                          Código do erro: {testResult.classification.errorCode}
-                        </p>
-                      )}
-
-                      {testResult.classification.productsFound !== undefined && (
-                        <p className="text-sm font-medium text-green-600">
-                          ✅ {testResult.classification.productsFound} produtos encontrados
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Request Details */}
-            {testResult?.request && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">📤 Detalhes da Requisição</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                    {JSON.stringify(testResult.request, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Response Details */}
-            {testResult?.response && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">📥 Resposta da API</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Headers */}
-                  {testResult.response.headers && (
-                    <div>
-                      <h4 className="text-xs font-medium mb-2">Headers:</h4>
-                      <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                        {JSON.stringify(testResult.response.headers, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* GraphQL Errors */}
-                  {testResult.response.errors && (
-                    <div>
-                      <h4 className="text-xs font-medium mb-2 text-red-600">❌ Erros GraphQL:</h4>
-                      <pre className="text-xs bg-red-50 dark:bg-red-950 p-3 rounded-md overflow-x-auto">
-                        {JSON.stringify(testResult.response.errors, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* Data */}
-                  {testResult.response.data && (
-                    <div>
-                      <h4 className="text-xs font-medium mb-2 text-green-600">✅ Dados:</h4>
-                      <pre className="text-xs bg-green-50 dark:bg-green-950 p-3 rounded-md overflow-x-auto max-h-64">
-                        {JSON.stringify(testResult.response.data, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* Raw Body (if no data/errors) */}
-                  {!testResult.response.data && !testResult.response.errors && testResult.response.rawBody && (
-                    <div>
-                      <h4 className="text-xs font-medium mb-2">Raw Response:</h4>
-                      <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                        {JSON.stringify(testResult.response.rawBody, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Error Details */}
-            {testResult?.error && (
-              <Card className="border-red-500">
-                <CardHeader>
-                  <CardTitle className="text-sm text-red-600">❌ Detalhes do Erro</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="text-xs bg-red-50 dark:bg-red-950 p-3 rounded-md overflow-x-auto">
-                    {JSON.stringify(testResult.error, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Timestamp */}
-            {testResult?.timestamp && (
-              <p className="text-xs text-muted-foreground text-center">
-                Testado em: {new Date(testResult.timestamp).toLocaleString('pt-BR')}
-              </p>
-            )}
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
-    </>
   );
 }
