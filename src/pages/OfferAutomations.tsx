@@ -487,19 +487,19 @@ export default function OfferAutomations() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Divulgações de IA</h1>
-          <p className="text-muted-foreground">Busca e monitoramento de promoções com IA</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Divulgações de IA</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Busca e monitoramento de promoções com IA</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm}>
+            <Button onClick={resetForm} className="w-full md:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Nova Automação
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Editar" : "Nova"} Automação</DialogTitle>
             </DialogHeader>
@@ -881,20 +881,21 @@ export default function OfferAutomations() {
               {automations.length} automação{automations.length !== 1 ? "ões" : ""} configurada{automations.length !== 1 ? "s" : ""}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Modo</TableHead>
-                  <TableHead>Lojas</TableHead>
-                  <TableHead>Intervalo</TableHead>
-                  <TableHead>Janela</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Próxima</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[150px]">Nome</TableHead>
+                    <TableHead className="min-w-[100px]">Modo</TableHead>
+                    <TableHead className="min-w-[80px]">Lojas</TableHead>
+                    <TableHead className="min-w-[90px]">Intervalo</TableHead>
+                    <TableHead className="min-w-[120px]">Janela</TableHead>
+                    <TableHead className="min-w-[80px]">Status</TableHead>
+                    <TableHead className="min-w-[100px]">Próxima</TableHead>
+                    <TableHead className="min-w-[150px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
               <TableBody>
                 {automations.map((auto) => (
                   <TableRow key={auto.id}>
@@ -959,7 +960,8 @@ export default function OfferAutomations() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
