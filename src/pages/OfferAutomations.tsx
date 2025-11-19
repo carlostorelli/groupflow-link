@@ -874,96 +874,181 @@ export default function OfferAutomations() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Automações</CardTitle>
-            <CardDescription>
-              {automations.length} automação{automations.length !== 1 ? "ões" : ""} configurada{automations.length !== 1 ? "s" : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
+        <>
+          {/* Mobile View - Cards */}
+          <div className="md:hidden space-y-4">
+            {automations.map((auto) => (
+              <Card key={auto.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{auto.name}</CardTitle>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant={auto.mode === "search" ? "default" : "secondary"}>
+                          {auto.mode === "search" ? "Busca" : "Monitor"}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {auto.stores.length} loja{auto.stores.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={auto.status === "active"}
+                      onCheckedChange={() => toggleStatus(auto.id, auto.status)}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Intervalo:</span>
+                      <div className="font-medium">{auto.interval_minutes} min</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Janela:</span>
+                      <div className="font-medium text-xs">
+                        {auto.start_time} - {auto.end_time}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Próxima execução:</span>
+                      <div className="font-medium text-xs">
+                        {auto.next_run_at ? format(new Date(auto.next_run_at), "dd/MM HH:mm") : "-"}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openEdit(auto)}
+                      className="flex-1"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleRunNow(auto)}
+                      disabled={runningId === auto.id || auto.status !== "active"}
+                      className="flex-1"
+                    >
+                      <Play className={`h-4 w-4 mr-1 ${runningId === auto.id ? "animate-pulse" : ""}`} />
+                      Executar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleResetHistory(auto.id, auto.name)}
+                      disabled={resettingId === auto.id}
+                    >
+                      <RotateCcw className={`h-4 w-4 ${resettingId === auto.id ? "animate-spin" : ""}`} />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDelete(auto.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop View - Table */}
+          <Card className="hidden md:block">
+            <CardHeader>
+              <CardTitle>Automações</CardTitle>
+              <CardDescription>
+                {automations.length} automação{automations.length !== 1 ? "ões" : ""} configurada{automations.length !== 1 ? "s" : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[150px]">Nome</TableHead>
-                    <TableHead className="min-w-[100px]">Modo</TableHead>
-                    <TableHead className="min-w-[80px]">Lojas</TableHead>
-                    <TableHead className="min-w-[90px]">Intervalo</TableHead>
-                    <TableHead className="min-w-[120px]">Janela</TableHead>
-                    <TableHead className="min-w-[80px]">Status</TableHead>
-                    <TableHead className="min-w-[100px]">Próxima</TableHead>
-                    <TableHead className="min-w-[150px]">Ações</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Modo</TableHead>
+                    <TableHead>Lojas</TableHead>
+                    <TableHead>Intervalo</TableHead>
+                    <TableHead>Janela</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Próxima</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
-              <TableBody>
-                {automations.map((auto) => (
-                  <TableRow key={auto.id}>
-                    <TableCell className="font-medium">{auto.name}</TableCell>
-                    <TableCell>
-                      <Badge variant={auto.mode === "search" ? "default" : "secondary"}>
-                        {auto.mode === "search" ? "Busca" : "Monitor"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{auto.stores.length} loja{auto.stores.length !== 1 ? "s" : ""}</TableCell>
-                    <TableCell>{auto.interval_minutes} min</TableCell>
-                    <TableCell className="text-xs">
-                      {auto.start_time} - {auto.end_time}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={auto.status === "active"}
-                        onCheckedChange={() => toggleStatus(auto.id, auto.status)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {auto.next_run_at ? format(new Date(auto.next_run_at), "dd/MM HH:mm") : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => openEdit(auto)}
-                          title="Editar automação"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleRunNow(auto)}
-                          disabled={runningId === auto.id || auto.status !== "active"}
-                          title="Executar agora"
-                        >
-                          <Play className={`h-4 w-4 ${runningId === auto.id ? "animate-pulse" : ""}`} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleResetHistory(auto.id, auto.name)}
-                          disabled={resettingId === auto.id}
-                          title="Resetar histórico de envios (últimas 24h)"
-                        >
-                          <RotateCcw className={`h-4 w-4 ${resettingId === auto.id ? "animate-spin" : ""}`} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDelete(auto.id)}
-                          title="Excluir automação"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                <TableBody>
+                  {automations.map((auto) => (
+                    <TableRow key={auto.id}>
+                      <TableCell className="font-medium">{auto.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={auto.mode === "search" ? "default" : "secondary"}>
+                          {auto.mode === "search" ? "Busca" : "Monitor"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{auto.stores.length} loja{auto.stores.length !== 1 ? "s" : ""}</TableCell>
+                      <TableCell>{auto.interval_minutes} min</TableCell>
+                      <TableCell className="text-xs">
+                        {auto.start_time} - {auto.end_time}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={auto.status === "active"}
+                          onCheckedChange={() => toggleStatus(auto.id, auto.status)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {auto.next_run_at ? format(new Date(auto.next_run_at), "dd/MM HH:mm") : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => openEdit(auto)}
+                            title="Editar automação"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleRunNow(auto)}
+                            disabled={runningId === auto.id || auto.status !== "active"}
+                            title="Executar agora"
+                          >
+                            <Play className={`h-4 w-4 ${runningId === auto.id ? "animate-pulse" : ""}`} />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleResetHistory(auto.id, auto.name)}
+                            disabled={resettingId === auto.id}
+                            title="Resetar histórico"
+                          >
+                            <RotateCcw className={`h-4 w-4 ${resettingId === auto.id ? "animate-spin" : ""}`} />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDelete(auto.id)}
+                            title="Excluir automação"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
               </Table>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
