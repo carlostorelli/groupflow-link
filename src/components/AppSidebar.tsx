@@ -125,8 +125,6 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarTrigger className="m-2 self-end" />
-
       <SidebarContent>
         {/* Logo section */}
         <div className="px-4 py-6 mb-4">
