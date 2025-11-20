@@ -132,7 +132,7 @@ export function AppSidebar() {
             <img 
               src={theme === "dark" ? logoLight : logoDark} 
               alt="ZAPP Grupos IA" 
-              className="h-10 w-auto"
+              className="h-14 w-auto"
             />
           )}
         </div>
