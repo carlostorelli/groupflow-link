@@ -73,7 +73,7 @@ export default function Auth() {
             <img 
               src={theme === "dark" ? logoLight : logoDark} 
               alt="ZAPP Grupos IA" 
-              className="h-16 w-auto"
+              className="h-24 w-auto"
             />
           </div>
           <CardTitle className="text-xl">Bem-vindo</CardTitle>
