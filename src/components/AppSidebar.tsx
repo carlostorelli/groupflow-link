@@ -17,7 +17,8 @@ import {
   Shield,
   BookOpen,
 } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logoLight from "@/assets/logo-light.png";
+import logoDark from "@/assets/logo-dark.png";
 import {
   Sidebar,
   SidebarContent,
@@ -129,7 +130,7 @@ export function AppSidebar() {
         <div className="px-4 py-6 mb-4">
           {!collapsed && (
             <img 
-              src={logo} 
+              src={theme === "dark" ? logoLight : logoDark} 
               alt="ZAPP Grupos IA" 
               className="h-10 w-auto"
             />
