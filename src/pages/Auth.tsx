@@ -8,8 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
-import logoDark from "@/assets/logo-dark.png";
-import logoLight from "@/assets/logo-light.png";
+import logo from "@/assets/logo.png";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -71,8 +70,8 @@ export default function Auth() {
         <CardHeader className="space-y-1 text-center pb-8">
           <div className="mb-4 flex justify-center">
             <img 
-              src={theme === "dark" ? logoLight : logoDark} 
-              alt="WhatsApp Manager" 
+              src={logo} 
+              alt="ZAPP Grupos IA" 
               className="h-16 w-auto"
             />
           </div>
